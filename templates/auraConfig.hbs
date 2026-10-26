@@ -1,0 +1,21 @@
+<section class="tab scrollable{{#if tab.active}} active{{/if}}" data-group="{{tab.group}}" data-tab="{{tab.id}}">
+    <button type="button" data-tooltip="AURAEFFECTS.ConvertToNormalHint" data-action="revert">
+        <i class="fa-solid fa-xmark"></i>
+        {{localize "AURAEFFECTS.ConvertToNormal"}}
+    </button>
+    {{formGroup auraFields.distanceFormula value=source.system.distanceFormula rootId=rootId}}
+    {{formGroup auraFields.applyToSelf value=source.system.applyToSelf rootId=rootId}}
+    {{formGroup auraFields.disposition value=source.system.disposition localize=true rootId=rootId}}
+    {{formGroup auraFields.overrideName value=source.system.overrideName placeholder=source.name rootId=rootId}}
+    {{formGroup auraFields.canStack value=source.system.canStack rootId=rootId}}
+    {{formGroup auraFields.bestFormula value=source.system.bestFormula rootId=rootId}}
+    {{#unless isDAEEnabled}}
+        {{formGroup auraFields.evaluatePreApply value=source.system.evaluatePreApply rootId=rootId}}
+    {{/unless}}
+    {{formGroup auraFields.collisionType value=source.system.collisionType localize=true rootId=rootId}}
+    {{formGroup auraFields.combatOnly value=source.system.combatOnly rootId=rootId}}
+    {{formGroup auraFields.disableOnHidden value=source.system.disableOnHidden rootId=rootId}}
+    {{formGroup auraFields.showRadius value=source.system.showRadius rootId=rootId}}
+    {{formGroup auraFields.color value=source.system.color rootId=rootId}}
+    {{formGroup auraFields.script value=source.system.script rootId=rootId}}
+</section>
