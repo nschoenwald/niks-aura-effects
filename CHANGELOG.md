@@ -2,6 +2,11 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.1.0] — 2026-11-02
+### Added
+- New translations: French, Spanish, Japanese and Polish. The module is now available in nine languages.
+- The German, Italian, Brazilian Portuguese and Czech translations now cover the whole module.
+
 ## [14.0.0] — 2026-10-26
 
 First release of Nik's Aura Effects, a fork of [Aura Effects](https://git.gay/roth-michael/Aura-Effects) 2.2.3 by Michael Roth. Existing aura effects, settings and worlds keep working unchanged.

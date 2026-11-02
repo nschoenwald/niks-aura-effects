@@ -15,9 +15,9 @@
                         "hint": "Se abilitato, altre aure con lo stesso nome potranno applicarsi contemporaneamente ai token validi.",
                         "label": "Aura Cumulabile"
                     },
-                    "collisionTypes": {
-                        "hint": "Quali tipi di muro (se presenti) bloccheranno questa aura.",
-                        "label": "Tipi Collisione"
+                    "collisionType": {
+                        "hint": "Quale tipo di muro, se presente, blocca questa aura.",
+                        "label": "Tipo di collisione"
                     },
                     "color": {
                         "hint": "Se lasciato vuoto, eredita il colore dell’utente (o del GM, se nessun utente ha assegnato l’attore come personaggio).",
@@ -91,6 +91,10 @@
             "ExactCircles": {
                 "Hint": "Se abilitato, le aure saranno mostrate come cerchi perfetti quando \"Diagonali a Griglia\" è impostato su \"Esatte\" (può causare errori visivi ai bordi per aure grandi).",
                 "Name": "Mostra Cerchi con Diagonali Esatte"
+            },
+            "HighlightMode": {
+                "Hint": "Configura se le regioni delle aure devono evidenziare le forme reali o le caselle della griglia coperte.",
+                "Name": "Modalità di evidenziazione delle aure"
             },
             "PreferLatest": {
                 "Hint": "Quando abilitata, se non esiste un'aura \"migliore\", verrà preferita l'istanza più recente di un'Aura non cumulabile. Di default, in caso di parità nella categoria \"migliore\", viene scelto l'effetto esistente.",

@@ -15,9 +15,9 @@
                         "hint": "Se habilitado, outras auras com o mesmo nome podem ser aplicadas ao mesmo tempo a quaisquer tokens aplicáveis.",
                         "label": "Aura Pode Acumular"
                     },
-                    "collisionTypes": {
-                        "hint": "Quais tipos de parede, se houver alguma, impedirão essa aura.",
-                        "label": "Tipos de Colisão"
+                    "collisionType": {
+                        "hint": "Qual tipo de parede, se houver, bloqueia esta aura.",
+                        "label": "Tipo de colisão"
                     },
                     "color": {
                         "hint": "Se estiver em branco, herdará a cor do usuário (ou a cor do Mestre, se nenhum usuário tiver o ator definido como seu personagem).",
@@ -91,6 +91,10 @@
             "ExactCircles": {
                 "Hint": "Quando ativado, as auras visualizadas serão mostradas como círculos perfeitos quando a opção \"Diagonais da Grade\" estiver definida como \"Exata\". (Isso pode resultar em visualizações imprecisas ao redor das bordas dos círculos, especialmente com raios de aura maiores).",
                 "Name": "Mostrar Círculos com Diagonais Exatas"
+            },
+            "HighlightMode": {
+                "Hint": "Define se as regiões das auras devem destacar as formas reais ou os espaços da grade cobertos.",
+                "Name": "Modo de destaque das auras"
             },
             "PreferLatest": {
                 "Hint": "Quando ativada, a instância mais recente de uma Aura não-acumulável será preferida, caso não exista uma Aura \"melhor\". Por padrão, em caso de empate, a Aura \"melhor\" vai para o efeito existente.",

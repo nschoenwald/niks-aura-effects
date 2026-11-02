@@ -1,0 +1,110 @@
+{
+    "AURAEFFECTS": {
+        "ACTIVEEFFECT": {
+            "Aura": {
+                "FIELDS": {
+                    "applyToSelf": {
+                        "hint": "Si activé, cette aura s'applique aussi au jeton source.",
+                        "label": "S'appliquer à soi-même"
+                    },
+                    "bestFormula": {
+                        "hint": "Une formule évaluée avec les données de jet de l'acteur source pour déterminer l'effet le plus puissant lorsque les auras ne se cumulent pas. Si vide, premier arrivé, premier servi.",
+                        "label": "Formule du « meilleur »"
+                    },
+                    "canStack": {
+                        "hint": "Si activé, d'autres auras du même nom peuvent s'appliquer en même temps aux jetons concernés.",
+                        "label": "L'aura est cumulable"
+                    },
+                    "collisionType": {
+                        "hint": "Quel type de mur, le cas échéant, arrête cette aura.",
+                        "label": "Type de collision"
+                    },
+                    "color": {
+                        "hint": "Si vide, reprend la couleur de l'utilisateur (ou celle du MJ si aucun utilisateur n'a l'acteur comme personnage).",
+                        "label": "Couleur"
+                    },
+                    "combatOnly": {
+                        "hint": "Si activé, cet effet est supprimé hors combat.",
+                        "label": "Combat uniquement"
+                    },
+                    "disableOnHidden": {
+                        "hint": "Si activé, cet effet est supprimé tant que le jeton qui le porte est caché.",
+                        "label": "Désactiver si caché"
+                    },
+                    "disposition": {
+                        "Choices": {
+                            "Any": "Tous",
+                            "Friendly": "Amical",
+                            "Hostile": "Hostile"
+                        },
+                        "hint": "À quelles attitudes de jeton (par rapport au jeton source) cette aura s'applique.",
+                        "label": "Attitude"
+                    },
+                    "distanceFormula": {
+                        "hint": "Indique le rayon de l'aura (les données de jet sont acceptées).",
+                        "label": "Distance"
+                    },
+                    "evaluatePreApply": {
+                        "hint": "Si activé, les valeurs des modifications sont évaluées avant l'application de l'effet, avec les données de jet de l'acteur source si nécessaire.",
+                        "label": "Évaluer les modifications à l'avance"
+                    },
+                    "overrideName": {
+                        "hint": "Le nom que doit porter l'effet appliqué (laisser vide pour utiliser le nom de l'effet de base).",
+                        "label": "Nom de l'effet"
+                    },
+                    "script": {
+                        "hint": "Une expression qui, si elle est vraie (ou vide), signifie que l'aura doit s'appliquer.",
+                        "label": "Script conditionnel"
+                    },
+                    "showRadius": {
+                        "hint": "Affiche ou non les bordures de l'aura pour tous les utilisateurs.",
+                        "label": "Afficher le rayon"
+                    }
+                }
+            }
+        },
+        "ConvertToAura": "Convertir en aura",
+        "ConvertToAuraHint": "Transforme immédiatement cet effet en effet source d'aura.",
+        "ConvertToNormal": "Revenir à un effet normal",
+        "ConvertToNormalHint": "Rétablit immédiatement le type d'origine de cet effet ; les réglages d'aura seront perdus.",
+        "Errors": {
+            "ScriptError": "Erreur lors de l'exécution du script conditionnel d'Aura Effects pour l'effet \"{effect}\" sur l'acteur \"{actor}\" :\n{error}"
+        },
+        "Migrations": {
+            "ActiveAurasBegin": "Début de la migration d'Active Auras vers Aura Effects...",
+            "ActiveAurasChatMessage": "Merci d'avoir installé Aura Effects ! Si vous utilisiez Active Auras, un script de migration convertit tous vos effets Active Auras en Aura Effects. Vous le trouverez à tout moment dans le dossier de compendiums d'Aura Effects, ou vous pouvez l'exécuter en cliquant ici : @UUID[Compendium.auraeffects.AuraEffectsMacros.Macro.NeaP6NSy6TzLQuKS]{Migrer depuis Active Auras}",
+            "ActiveAurasComplete": "Migration d'Active Auras vers Aura Effects terminée !",
+            "AllCompleted": "Toutes les migrations d'Aura Effects sont terminées !",
+            "Beginning": "Début des migrations d'Aura Effects..."
+        },
+        "NoActiveGM": "Aura Effects ne fonctionnera pas sans MJ connecté.",
+        "PotentialSystemIncompatibility": "Notez que, la définition de base des effets actifs de ce système recoupant les champs ajoutés par Aura Effects, les effets de type Aura n'auront pas les améliorations propres au système dont disposent les effets normaux.",
+        "SETTINGS": {
+            "DefaultVisibility": {
+                "Hint": "Si activé, la visualisation est activée par défaut pour toute nouvelle aura.",
+                "Name": "Auras visibles par défaut"
+            },
+            "DisableScrollingText": {
+                "Hint": "Désactive le texte défilant qui apparaît quand des effets d'aura sont ajoutés à l'acteur d'un jeton ou retirés.",
+                "Name": "Désactiver le texte défilant des auras"
+            },
+            "ExactCircles": {
+                "Hint": "Si activé, les auras visualisées sont affichées en cercles parfaits lorsque « Diagonales de la grille » est réglé sur « Exactes ». (Cela peut donner une visualisation imprécise aux bords des cercles, surtout avec de grands rayons.)",
+                "Name": "Afficher des cercles avec diagonales exactes"
+            },
+            "HighlightMode": {
+                "Hint": "Indique si les régions des auras doivent mettre en évidence les formes réelles ou les cases de grille couvertes.",
+                "Name": "Mode de mise en évidence des auras"
+            },
+            "PreferLatest": {
+                "Hint": "Si activé, l'instance la plus récente d'une aura non cumulable est privilégiée s'il n'y a pas de « meilleure » aura. Par défaut, en cas d'égalité, l'effet existant l'emporte.",
+                "Name": "Privilégier l'aura la plus récente"
+            }
+        },
+        "SHEETS.AuraActiveEffectSheet": "Fiche d'effet d'aura"
+    },
+    "EFFECT.TABS": {
+        "aura": "Aura"
+    },
+    "TYPES.ActiveEffect.auraeffects.aura": "Aura"
+}

@@ -15,9 +15,9 @@
                         "hint": "Po zaškrtnutí se na příslušné tokeny mohou současně uplatnit i další aury se stejným názvem.",
                         "label": "Mohou se aury sčítat?"
                     },
-                    "collisionTypes": {
-                        "hint": "Jaké typy zdí, pokud vůbec nějaké, tuto auru zastaví.",
-                        "label": "Typy kolize"
+                    "collisionType": {
+                        "hint": "Který typ zdi, pokud nějaký, tuto auru zastaví.",
+                        "label": "Typ kolize"
                     },
                     "color": {
                         "hint": "Pokud je prázdné, převezme barvu uživatele (nebo PJ, pokud nemá postavu přiřazenou žádný uživatel).",
@@ -78,6 +78,7 @@
             "Beginning": "Zahájena migrace efektů Aura Effects..."
         },
         "NoActiveGM": "Aura Effects nebude fungovat, pokud nebude přihlášen žádný PJ.",
+        "PotentialSystemIncompatibility": "Upozornění: protože se základní definice aktivních efektů tohoto systému překrývá s poli, která přidává Aura Effects, efekty typu Aura nebudou mít systémová vylepšení, která mají běžné efekty.",
         "SETTINGS": {
             "DefaultVisibility": {
                 "Hint": "Po zaškrtnutí bude vizualizace ve výchozím nastavení zapnutá pro všechny nově vytvořené efekty aury.",
@@ -90,6 +91,14 @@
             "ExactCircles": {
                 "Hint": "Pokud je nastavení \"Grid Diagonals\" nastaveno na \"Exact.\", budou po zaškrtnutí vizualizované aury zobrazovány jako dokonalé kruhy. (Může vést k nepřesné vizualizaci na okrajích kruhů, zejména u větších aur.)",
                 "Name": "Zobrazovat přesné úhlopříčky?"
+            },
+            "HighlightMode": {
+                "Hint": "Určuje, zda mají oblasti aur zvýrazňovat skutečné tvary, nebo pokrytá políčka mřížky.",
+                "Name": "Režim zvýraznění aur"
+            },
+            "PreferLatest": {
+                "Hint": "Je-li zapnuto a neexistuje „nejlepší“ aura, dává se přednost nejnovější instanci neskládatelné aury. Ve výchozím stavu se při shodě „nejlepší“ ponechává stávající efekt.",
+                "Name": "Upřednostnit nejnovější auru"
             }
         },
         "SHEETS.AuraActiveEffectSheet": "Deník aktivního efektu aury"

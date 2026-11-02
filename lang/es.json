@@ -1,0 +1,110 @@
+{
+    "AURAEFFECTS": {
+        "ACTIVEEFFECT": {
+            "Aura": {
+                "FIELDS": {
+                    "applyToSelf": {
+                        "hint": "Si está activado, esta aura se aplicará a la ficha de origen.",
+                        "label": "Aplicar a sí mismo"
+                    },
+                    "bestFormula": {
+                        "hint": "Una fórmula que se evalúa con los datos de tirada del actor de origen para determinar el efecto más potente cuando no se acumulan. Si se deja vacía, se aplica por orden de llegada.",
+                        "label": "Fórmula del «mejor»"
+                    },
+                    "canStack": {
+                        "hint": "Si está activado, otras auras con el mismo nombre pueden aplicarse a la vez a las fichas afectadas.",
+                        "label": "El aura se acumula"
+                    },
+                    "collisionType": {
+                        "hint": "Qué tipo de muro, si lo hay, detiene esta aura.",
+                        "label": "Tipo de colisión"
+                    },
+                    "color": {
+                        "hint": "Si se deja vacío, usa el color del usuario (o el del DJ si ningún usuario tiene el actor como personaje).",
+                        "label": "Color"
+                    },
+                    "combatOnly": {
+                        "hint": "Si está activado, este efecto se suprime fuera del combate.",
+                        "label": "Solo en combate"
+                    },
+                    "disableOnHidden": {
+                        "hint": "Si está activado, este efecto se suprime mientras la ficha que lo tiene esté oculta.",
+                        "label": "Desactivar si está oculta"
+                    },
+                    "disposition": {
+                        "Choices": {
+                            "Any": "Cualquiera",
+                            "Friendly": "Amistosa",
+                            "Hostile": "Hostil"
+                        },
+                        "hint": "A qué disposiciones de ficha (respecto a la ficha de origen) se aplica esta aura.",
+                        "label": "Disposición"
+                    },
+                    "distanceFormula": {
+                        "hint": "Indica el radio que alcanza esta aura (se aceptan datos de tirada).",
+                        "label": "Distancia"
+                    },
+                    "evaluatePreApply": {
+                        "hint": "Si está activado, los valores de los cambios se evalúan antes de aplicar el efecto, usando los datos de tirada del actor de origen si hace falta.",
+                        "label": "Evaluar cambios por adelantado"
+                    },
+                    "overrideName": {
+                        "hint": "Qué nombre tendrá el efecto aplicado (déjalo vacío para usar el nombre del efecto base).",
+                        "label": "Nombre del efecto"
+                    },
+                    "script": {
+                        "hint": "Una expresión que, si es verdadera (o está vacía), indica que el aura debe aplicarse.",
+                        "label": "Script condicional"
+                    },
+                    "showRadius": {
+                        "hint": "Si se muestran los bordes del aura a todos los usuarios.",
+                        "label": "Mostrar radio"
+                    }
+                }
+            }
+        },
+        "ConvertToAura": "Convertir en aura",
+        "ConvertToAuraHint": "Transforma inmediatamente este efecto en un efecto de origen de aura.",
+        "ConvertToNormal": "Volver a efecto normal",
+        "ConvertToNormalHint": "Devuelve inmediatamente este efecto a su tipo original; los ajustes del aura se perderán.",
+        "Errors": {
+            "ScriptError": "Error al ejecutar el script condicional de Aura Effects para el efecto \"{effect}\" del actor \"{actor}\":\n{error}"
+        },
+        "Migrations": {
+            "ActiveAurasBegin": "Iniciando la migración de Active Auras a Aura Effects...",
+            "ActiveAurasChatMessage": "¡Gracias por instalar Aura Effects! Si antes usabas Active Auras, hay un script de migración que convierte todos tus efectos de Active Auras en Aura Effects. Puedes encontrarlo en cualquier momento en la carpeta de compendios de Aura Effects o ejecutarlo haciendo clic aquí: @UUID[Compendium.auraeffects.AuraEffectsMacros.Macro.NeaP6NSy6TzLQuKS]{Migrar desde Active Auras}",
+            "ActiveAurasComplete": "¡Migración de Active Auras a Aura Effects completada!",
+            "AllCompleted": "¡Todas las migraciones de Aura Effects completadas!",
+            "Beginning": "Iniciando las migraciones de Aura Effects..."
+        },
+        "NoActiveGM": "Aura Effects no intentará funcionar sin un DJ conectado.",
+        "PotentialSystemIncompatibility": "Ten en cuenta que, como la definición base de efectos activos de este sistema se solapa con los campos que añade Aura Effects, los efectos de tipo Aura no tendrán las mejoras propias del sistema que tienen los efectos normales.",
+        "SETTINGS": {
+            "DefaultVisibility": {
+                "Hint": "Si está activado, la visualización estará activa por defecto en cualquier aura recién creada.",
+                "Name": "Auras visibles por defecto"
+            },
+            "DisableScrollingText": {
+                "Hint": "Desactiva el texto flotante que aparece al añadir o quitar efectos causados por auras al actor de una ficha.",
+                "Name": "Desactivar texto flotante de las auras"
+            },
+            "ExactCircles": {
+                "Hint": "Si está activado, las auras visualizadas se muestran como círculos perfectos cuando «Diagonales de la cuadrícula» está en «Exactas». (Puede dar visualizaciones imprecisas en los bordes de los círculos, sobre todo con radios grandes.)",
+                "Name": "Mostrar círculos con diagonales exactas"
+            },
+            "HighlightMode": {
+                "Hint": "Configura si las regiones de las auras resaltan las formas reales o las casillas de la cuadrícula cubiertas.",
+                "Name": "Modo de resaltado de auras"
+            },
+            "PreferLatest": {
+                "Hint": "Si está activado, se prefiere la instancia más reciente de un aura no acumulable cuando no hay un aura «mejor». Por defecto, en caso de empate gana el efecto existente.",
+                "Name": "Preferir el aura más reciente"
+            }
+        },
+        "SHEETS.AuraActiveEffectSheet": "Hoja de efecto de aura"
+    },
+    "EFFECT.TABS": {
+        "aura": "Aura"
+    },
+    "TYPES.ActiveEffect.auraeffects.aura": "Aura"
+}

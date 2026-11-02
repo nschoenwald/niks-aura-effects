@@ -67,7 +67,18 @@
         "ConvertToAuraHint": "Transformiert den Effekt in einen Aura-Quelleffekt.",
         "ConvertToNormal": "Zu normalem Effekt zurücksetzen",
         "ConvertToNormalHint": "Setzt den Effekt auf einen normalen Effekt zurück; Auraeinstellungen gehen verloren.",
+        "Errors": {
+            "ScriptError": "Fehler beim Ausführen des bedingten Skripts von Aura Effects für den Effekt \"{effect}\" auf dem Akteur \"{actor}\":\n{error}"
+        },
+        "Migrations": {
+            "ActiveAurasBegin": "Migration von Active Auras zu Aura Effects beginnt...",
+            "ActiveAurasChatMessage": "Danke für die Installation von Aura Effects! Falls du bisher Active Auras benutzt hast, gibt es ein Migrationsskript, das alle deine Active-Auras-Effekte in Aura Effects umwandelt. Du findest es jederzeit im Kompendiumordner von Aura Effects oder kannst es mit einem Klick hier ausführen: @UUID[Compendium.auraeffects.AuraEffectsMacros.Macro.NeaP6NSy6TzLQuKS]{Von Active Auras migrieren}",
+            "ActiveAurasComplete": "Migration von Active Auras zu Aura Effects abgeschlossen!",
+            "AllCompleted": "Alle Migrationen von Aura Effects abgeschlossen!",
+            "Beginning": "Migrationen von Aura Effects beginnen..."
+        },
         "NoActiveGM": "Aureneffekte funktionieren nicht ohne eingeloggte Spielleitung.",
+        "PotentialSystemIncompatibility": "Bitte beachte: Da sich die Basisdefinition aktiver Effekte dieses Systems mit den Feldern überschneidet, die Aura Effects hinzufügt, haben Effekte vom Typ Aura nicht die systemspezifischen Erweiterungen normaler Effekte.",
         "SETTINGS": {
             "DefaultVisibility": {
                 "Hint": "Aktiviert werden neue Aureneffekte standardmäßig visualisiert.",
@@ -89,6 +100,11 @@
                 "Hint": "Aktiviert werden bei nicht-stapelbaren Auren die jüngsten Effekte priorisiert, wenn kein \"bester\" bestimmt werden kann. Standardmäßig gilt sonst der ältere Effekt.",
                 "Name": "Jüngste Aura bevorzugen"
             }
-        }
-    }
+        },
+        "SHEETS.AuraActiveEffectSheet": "Aura-Effektbogen"
+    },
+    "EFFECT.TABS": {
+        "aura": "Aura"
+    },
+    "TYPES.ActiveEffect.auraeffects.aura": "Aura"
 }

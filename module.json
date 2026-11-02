@@ -1,7 +1,7 @@
 {
   "id": "auraeffects",
   "title": "Nik's Aura Effects",
-  "version": "14.0.0",
+  "version": "14.1.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14.368",
@@ -29,6 +29,21 @@
       "path": "lang/en.json"
     },
     {
+      "lang": "de",
+      "name": "Deutsch",
+      "path": "lang/de.json"
+    },
+    {
+      "lang": "fr",
+      "name": "Français",
+      "path": "lang/fr.json"
+    },
+    {
+      "lang": "es",
+      "name": "Español",
+      "path": "lang/es.json"
+    },
+    {
       "lang": "it",
       "name": "Italiano",
       "path": "lang/it.json"
@@ -39,14 +54,19 @@
       "path": "lang/pt-BR.json"
     },
     {
+      "lang": "ja",
+      "name": "日本語",
+      "path": "lang/ja.json"
+    },
+    {
+      "lang": "pl",
+      "name": "Polski",
+      "path": "lang/pl.json"
+    },
+    {
       "lang": "cs",
       "name": "Čeština",
       "path": "lang/cs.json"
-    },
-    {
-      "lang": "de",
-      "name": "Deutsch",
-      "path": "lang/de.json"
     }
   ],
   "packs": [
