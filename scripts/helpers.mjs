@@ -48,7 +48,49 @@ function getDispositionRelation(tokenA, tokenB) {
 }
 
 /**
- * Get the tokens which represent an actor on the active scene and on the scene this client is viewing (active scene
+ * Get the scenes on which play currently happens: the active scene, then every scene a connected player is viewing.
+ * Viewed scenes are tracked from user activity, which every client receives.
+ * @returns {Scene[]}
+ */
+function getLiveScenes() {
+  const ids = new Set();
+  if (game.scenes?.active) ids.add(game.scenes.active.id);
+  for (const user of game.users ?? []) {
+    if (user.active && !user.isGM && user.viewedScene) ids.add(user.viewedScene);
+  }
+  return Array.from(ids, id => game.scenes.get(id)).filter(Boolean);
+}
+
+/**
+ * Get the scene whose auras a world actor's applied auras follow. Applied auras live on the actor and so show on every
+ * scene, which means only one scene may decide them: of the live scenes holding a linked token of the actor, the one
+ * a connected owning player is viewing, else the first (the active scene if it qualifies).
+ * @param {Actor} actor   A world actor
+ * @returns {Scene|null}
+ */
+function getHomeScene(actor) {
+  const candidates = getLiveScenes().filter(s => s.tokens.some(t => t.actorLink && (t.actorId === actor.id)));
+  if (candidates.length < 2) return candidates[0] ?? null;
+  const viewed = game.users.find(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER")
+    && candidates.some(s => s.id === u.viewedScene))?.viewedScene;
+  return candidates.find(s => s.id === viewed) ?? candidates[0];
+}
+
+/**
+ * Whether auras may be applied to or removed from a token's actor from the token's scene. Unlinked tokens have their
+ * own actor, so any scene may. Linked tokens only may on their actor's home scene, so that moving tokens around a
+ * scene being prepared doesn't change the characters in play.
+ * @param {TokenDocument} token
+ * @returns {boolean}
+ */
+function canReceiveAuras(token) {
+  if (!token?.actor || !token.parent) return false;
+  if (!token.actorLink) return true;
+  return getHomeScene(token.actor) === token.parent;
+}
+
+/**
+ * Get the tokens which represent an actor on the live scenes and on the scene this client is viewing (active scene
  * first). Unlike Actor#getActiveTokens, this doesn't depend solely on which scene the current user happens to view.
  * @param {Actor} actor
  * @returns {TokenDocument[]}
@@ -56,7 +98,7 @@ function getDispositionRelation(tokenA, tokenB) {
 function getActorTokens(actor) {
   if (!actor) return [];
   if (actor.isToken) return actor.token?.parent ? [actor.token] : [];
-  const scenes = Array.from(new Set([game.scenes?.active, canvas?.scene].filter(Boolean)));
+  const scenes = Array.from(new Set([...getLiveScenes(), canvas?.scene].filter(Boolean)));
   if (!scenes.length) return [];
   return actor.getDependentTokens({ scenes, concreteOnly: true });
 }
@@ -128,7 +170,7 @@ async function removeAndReplaceAuras(effects, scene) {
     const fromAura = effect.getFlag("auraeffects", "fromAura");
     if (fromUuidSync((fromAura === true) ? effect.origin : fromAura)?.system.canStack) return acc;
     acc[effect.name] ??= [];
-    acc[effect.name].push(...effect.parent.getDependentTokens({ scenes: scene, concreteOnly: true }));
+    acc[effect.name].push(...effect.parent.getDependentTokens({ scenes: scene, concreteOnly: true }).filter(canReceiveAuras));
     return acc;
   }, {});
 
@@ -233,7 +275,7 @@ async function updateAllAuraRegions(token) {
   const toAdd = {};
   for (const [region, sourceEffect] of retained) {
     for (const currToken of region.tokens) {
-      if (!currToken.actor) continue;
+      if (!canReceiveAuras(currToken)) continue;
       // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
       const currAppliedEffect = currToken.actor.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid));
       if (currAppliedEffect) {
@@ -253,7 +295,7 @@ async function updateAllAuraRegions(token) {
  */
 // TODO: Any way to keep this from always toggling between effects if prefer recent is on & both require conditionals?
 async function refreshConditionalAuras(token) {
-  if (!token.actor) return;
+  if (!canReceiveAuras(token)) return;
   const toRemove = [];
   const toAdd = [];
   for (const region of getAuraRegions(token)) {
@@ -275,7 +317,7 @@ async function refreshConditionalAuras(token) {
  * @param {TokenDocument} token
  */
 async function refreshAllAuras(token) {
-  if (!token.actor || !token.parent) return;
+  if (!canReceiveAuras(token)) return;
   const sceneAuraRegions = token.parent.regions.filter(r => r.getFlag("auraeffects", "origin"));
   const toRemove = [];
   const kept = [];
@@ -309,17 +351,19 @@ async function refreshAllAuras(token) {
 }
 
 /**
- * Rebuild all aura regions on a scene and fully reconcile every token's applied auras against them. World actors
- * without any token on the scene lose all applied auras, since those can only stem from another scene.
- * @param {Scene} scene
+ * Rebuild all aura regions on the live scenes and fully reconcile every token's applied auras against them. World
+ * actors without a linked token on any live scene lose all applied auras, since those can only stem from elsewhere.
  */
-async function refreshSceneAuras(scene) {
+async function refreshLiveScenes() {
   const activeGM = game.users.activeGM;
   if (!activeGM) return;
-  const tokens = scene.tokens.filter(t => t.actor);
+  const scenes = getLiveScenes();
+  // Without any scene in play there's nothing to reconcile against
+  if (!scenes.length) return;
+  const tokens = scenes.flatMap(s => s.tokens.filter(t => t.actor));
   for (const token of tokens) await updateAllAuraRegions(token);
   for (const token of tokens) await refreshAllAuras(token);
-  const presentActorIds = new Set(scene.tokens.map(t => t.actorId));
+  const presentActorIds = new Set(tokens.filter(t => t.actorLink).map(t => t.actorId));
   const stale = game.actors
     .filter(a => !presentActorIds.has(a.id))
     .flatMap(a => a.effects.filter(e => e.getFlag("auraeffects", "fromAura")));
@@ -394,7 +438,10 @@ function getRegionDataFromEffect(effect, token) {
 }
 
 export {
+  canReceiveAuras,
   getActorTokens,
+  getHomeScene,
+  getLiveScenes,
   getActiveAuraEffects,
   getAuraRegions,
   getExtendedParts,
@@ -403,7 +450,7 @@ export {
   removeAndReplaceAuras,
   updateAllAuraRegions,
   refreshConditionalAuras,
-  refreshSceneAuras,
+  refreshLiveScenes,
   syncAppliedAuras,
   auraShouldApply
 };

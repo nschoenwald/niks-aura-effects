@@ -1,7 +1,7 @@
 import AuraActiveEffectDataMixin from "./AuraActiveEffectData.mjs";
 import AuraActiveEffectSheetMixin from "./AuraActiveEffectSheet.mjs";
-import { auraShouldApply, getActorTokens, getAuraRegions, getFormSystemData, refreshConditionalAuras, refreshSceneAuras, removeAndReplaceAuras, syncAppliedAuras, updateAllAuraRegions } from "./helpers.mjs";
-import { applyAuraEffects, deleteEffects, updateAppliedEffects, updateRegionsForToken } from "./queries.mjs";
+import { auraShouldApply, canReceiveAuras, getActorTokens, getAuraRegions, getFormSystemData, getHomeScene, getLiveScenes, refreshConditionalAuras, removeAndReplaceAuras, syncAppliedAuras, updateAllAuraRegions } from "./helpers.mjs";
+import { applyAuraEffects, deleteEffects, refreshLiveScenesQuery, scheduleLiveScenesRefresh, updateAppliedEffects, updateRegionsForToken } from "./queries.mjs";
 import { registerSettings } from "./settings.mjs";
 import { migrate } from "./migrations.mjs";
 import { api } from "./api.mjs";
@@ -45,6 +45,7 @@ async function createToken(token, options, userId) {
   const activeGM = checkActiveGM();
   if (!activeGM) return;
   await updateAllAuraRegions(token);
+  if (!canReceiveAuras(token)) return;
   const toApply = getAuraRegions(token)
     .reduce((acc, region) => {
       const effect = fromUuidSync(region.getFlag("auraeffects", "origin"));
@@ -73,6 +74,8 @@ async function updateToken(token, updates, options, userId) {
   // Skip e.g. region membership updates, which core issues for every token whenever any region changes
   if (REGION_AFFECTING_KEYS.some(k => k in updates)) await updateAllAuraRegions(token);
   await refreshConditionalAuras(token);
+  // Linked tokens off their actor's home scene must not change the actor's auras
+  if (!canReceiveAuras(token)) return;
 
   // Disposition change
   if ("disposition" in updates) {
@@ -185,7 +188,7 @@ async function deleteRegion(region, options, userId) {
   if (!region.parent) return;
   if (!checkActiveGM()) return;
   // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
-  const toRemove = Array.from(region.tokens).map(t => t.actor?.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(originUuid))).filter(Boolean);
+  const toRemove = Array.from(region.tokens).filter(canReceiveAuras).map(t => t.actor?.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(originUuid))).filter(Boolean);
   await removeAndReplaceAuras(toRemove, region.parent);
 }
 
@@ -201,6 +204,10 @@ async function deleteToken(token, options, userId) {
   // Unlinked actors are deleted along with their token
   if (!token.actorLink || !token.actor) return;
   if (!checkActiveGM()) return;
+  // The token is already gone from its scene, so check the scene instead: it must be live, and must not have handed
+  // the actor's auras to another scene
+  const homeScene = getHomeScene(token.actor);
+  if (!getLiveScenes().includes(token.parent) || (homeScene && (homeScene !== token.parent))) return;
   // Keep auras which another token of the same actor is still within
   const otherTokens = token.parent.tokens.filter(t => t.actor === token.actor);
   const originsToRemove = new Set(getAuraRegions(token)
@@ -275,18 +282,28 @@ async function updateItem(item, updates, options, userId) {
 }
 
 /**
- * Provided the arguments for the updateScene hook, fully refresh auras on a scene which just became active, so that
- * auras applied on the previously active scene don't linger
+ * Provided the arguments for the updateScene hook, fully refresh auras on the live scenes when the active scene
+ * changes, so that auras applied on the previously active scene don't linger
  * @param {Scene} scene     The scene being updated
  * @param {Object} updates  The updates
  * @param {Object} options  Additional options
  * @param {String} userId   The initiating User's ID
  */
-async function updateScene(scene, updates, options, userId) {
-  if (!("active" in updates) || !scene.active) return;
+function updateScene(scene, updates, options, userId) {
+  if (!("active" in updates)) return;
   // Only GMs can activate scenes; let the active GM do the work regardless of who activated it
   if (!game.user.isActiveGM) return;
-  await refreshSceneAuras(scene);
+  scheduleLiveScenesRefresh();
+}
+
+/**
+ * When a player's canvas shows a scene, ask the active GM to refresh the live scenes, since that scene may have just
+ * become one. Other users' viewed scenes arrive as user activity, which fires no hook on the GM's client.
+ * @param {Canvas} board
+ */
+function onCanvasReady(board) {
+  if (game.user.isGM || !board.scene) return;
+  game.users.activeGM?.query("auraeffects.refreshLiveScenes", {}).catch(err => console.error(err));
 }
 
 /**
@@ -391,6 +408,7 @@ function registerHooks() {
   Hooks.on("deleteItem", addRemoveItem);
   Hooks.on("updateItem", updateItem);
   Hooks.on("updateScene", updateScene);
+  Hooks.on("canvasReady", onCanvasReady);
   Hooks.on("createCombatant", addRemoveCombatant);
   Hooks.on("deleteCombatant", addRemoveCombatant);
   Hooks.on("deleteCombat", deleteCombat);
@@ -412,6 +430,7 @@ function registerQueries() {
   CONFIG.queries["auraeffects.applyAuraEffects"] = applyAuraEffects;
   CONFIG.queries["auraeffects.updateAppliedEffects"] = updateAppliedEffects;
   CONFIG.queries["auraeffects.updateRegionsForToken"] = updateRegionsForToken;
+  CONFIG.queries["auraeffects.refreshLiveScenes"] = refreshLiveScenesQuery;
 }
 
 function registerAuraType() {
@@ -460,6 +479,6 @@ Hooks.once("ready", () => {
     }
     migrate();
     // Catch up on anything that changed while no GM was around to process it
-    if (game.scenes.active) refreshSceneAuras(game.scenes.active);
+    scheduleLiveScenesRefresh();
   }
 });

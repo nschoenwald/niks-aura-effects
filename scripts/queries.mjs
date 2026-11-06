@@ -1,4 +1,21 @@
+import { refreshLiveScenes } from "./helpers.mjs";
+
 const gmQueue = new foundry.utils.Semaphore();
+
+// Live scene refreshes run one after another, and bursts (e.g. pulling every player to a scene) collapse into one
+let liveScenesRefresh = Promise.resolve();
+const scheduleLiveScenesRefresh = foundry.utils.debounce(() => {
+  liveScenesRefresh = liveScenesRefresh.then(refreshLiveScenes).catch(err => console.error(err));
+}, 250);
+
+/**
+ * Refresh auras on all live scenes, for the active GM only. Requested by players whose canvas changed scene.
+ * @returns {boolean}   true
+ */
+function refreshLiveScenesQuery() {
+  if (game.user.isActiveGM) scheduleLiveScenesRefresh();
+  return true;
+}
 
 /**
  * Delete all Active Effects whose UUIDs are provided (ignoring any UUIDs which do NOT correspond to Active Effects)
@@ -203,6 +220,8 @@ async function updateRegionsForToken({tokenUuid, toCreate=[], toUpdate=[], toDel
 export {
   applyAuraEffects,
   deleteEffects,
+  refreshLiveScenesQuery,
+  scheduleLiveScenesRefresh,
   updateAppliedEffects,
   updateRegionsForToken
 };

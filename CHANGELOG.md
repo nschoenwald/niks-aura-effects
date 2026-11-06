@@ -2,6 +2,12 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.2.0] — 2026-11-06
+### Changed
+- **Preparing a scene no longer affects the characters in play** — Moving a player character's token on a scene that isn't active, for example while setting up the next encounter, no longer gives or takes away auras on that character. NPC tokens that aren't linked to an actor still pick up auras on any scene, so a prepared encounter is ready when it goes live.
+- **Scenes with players count too** — Besides the active scene, auras on characters also work on any scene a connected player is looking at, for example when the GM pulls part of the group to another scene. If a character has tokens on several of these scenes, the one its player is looking at wins, otherwise the active scene.
+- **Auras catch up when players change scenes** — When the active scene changes or a player arrives on another scene, auras are recalculated for every scene in play.
+
 ## [14.1.1] — 2026-11-04
 ### Removed
 - Removed the French, Spanish, Japanese and Polish translations. They were machine-translated and never checked by a native speaker. Players who use Foundry in one of these languages now see this module in English. Translations by native speakers are welcome as an issue or pull request.
