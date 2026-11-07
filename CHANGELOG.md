@@ -2,6 +2,10 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.3.0] — 2026-11-07
+### Added
+- **French translation**: The module is now available in French, reviewed by Kameleau. Thank you!
+
 ## [14.2.0] — 2026-11-06
 ### Changed
 - **Preparing a scene no longer affects the characters in play** — Moving a player character's token on a scene that isn't active, for example while setting up the next encounter, no longer gives or takes away auras on that character. NPC tokens that aren't linked to an actor still pick up auras on any scene, so a prepared encounter is ready when it goes live.

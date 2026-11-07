@@ -1,7 +1,7 @@
 {
   "id": "auraeffects",
   "title": "Nik's Aura Effects",
-  "version": "14.2.0",
+  "version": "14.3.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14.368",
@@ -32,6 +32,11 @@
       "lang": "de",
       "name": "Deutsch",
       "path": "lang/de.json"
+    },
+    {
+      "lang": "fr",
+      "name": "Français",
+      "path": "lang/fr.json"
     },
     {
       "lang": "it",

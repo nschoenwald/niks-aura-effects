@@ -53,7 +53,7 @@ A GM must be logged in for auras to work.
 
 ## 🌐 Languages
 
-🇬🇧 English · 🇩🇪 Deutsch · 🇮🇹 Italiano · 🇧🇷 Português (Brasil) · 🇨🇿 Čeština
+🇬🇧 English · 🇩🇪 Deutsch · 🇫🇷 Français (thanks Kameleau) · 🇮🇹 Italiano · 🇧🇷 Português (Brasil) · 🇨🇿 Čeština
 
 ---
 
