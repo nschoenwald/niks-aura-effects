@@ -4,7 +4,7 @@
             "Aura": {
                 "FIELDS": {
                     "applyToSelf": {
-                        "hint": "Si elle est activée, cette aura s’appliquera au jeton source.",
+                        "hint": "Si elle est activée, cette aura s’appliquera au token source.",
                         "label": "Appliquer à soi-même"
                     },
                     "bestFormula": {
@@ -12,7 +12,7 @@
                         "label": "Meilleure formule"
                     },
                     "canStack": {
-                        "hint": "Si activé, les autres auras du même nom peuvent s'appliquer en même temps aux jetons concernés.",
+                        "hint": "Si activé, les autres auras du même nom peuvent s'appliquer en même temps aux tokens concernés.",
                         "label": "L'aura est cumulable"
                     },
                     "collisionType": {
@@ -28,7 +28,7 @@
                         "label": "Combat uniquement"
                     },
                     "disableOnHidden": {
-                        "hint": "Si activé, cet effet est supprimé tant que le jeton qui le porte est caché.",
+                        "hint": "Si activé, cet effet est supprimé tant que le token qui le porte est caché.",
                         "label": "Désactiver lorsque caché"
                     },
                     "disposition": {
@@ -37,7 +37,7 @@
                             "Friendly": "Amical",
                             "Hostile": "Hostile"
                         },
-                        "hint": "À quelles dispositions de jeton (par rapport au jeton source) cette aura s'applique.",
+                        "hint": "À quelles dispositions de token (par rapport au token source) cette aura s'applique.",
                         "label": "Disposition"
                     },
                     "distanceFormula": {
@@ -85,7 +85,7 @@
                 "Name": "Auras Effects visibles par défaut"
             },
             "DisableScrollingText": {
-                "Hint": "Désactive le texte défilant qui apparaît quand des effets d'aura sont ajoutés à l'acteur d'un jeton ou retirés.",
+                "Hint": "Désactive le texte défilant qui apparaît quand des effets d'aura sont ajoutés à l'acteur d'un token ou retirés.",
                 "Name": "Désactiver le texte défilant pour Aura Effects"
             },
             "ExactCircles": {

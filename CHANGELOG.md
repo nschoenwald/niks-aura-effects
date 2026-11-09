@@ -2,6 +2,10 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.3.1] — 2026-11-09
+### Changed
+- **French translation**: Tokens are now called « token » instead of « jeton », as in the French translations of Foundry and D&D 5e (thanks Kameleau).
+
 ## [14.3.0] — 2026-11-07
 ### Added
 - **French translation**: The module is now available in French, reviewed by Kameleau. Thank you!
