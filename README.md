@@ -31,7 +31,7 @@ When the active scene changes, a player arrives on another scene, or a GM logs i
 
 > To test an aura on a character alone, activate the scene first. On an inactive scene with no player looking at it, characters don't receive auras.
 
-A GM must be logged in for auras to work.
+A GM must be logged in for auras to work. Without one, changes are picked up when a GM logs in. Players only get the "no GM" warning when a change actually involves auras, not for every edit to their character.
 
 ---
 

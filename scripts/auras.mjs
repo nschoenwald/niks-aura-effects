@@ -19,12 +19,33 @@ let mixBase = true;
 const REGION_AFFECTING_KEYS = ["x", "y", "elevation", "width", "height", "shape", "level", "hidden", "actorId", "actorLink", "delta"];
 
 /**
- * A small helper function to determine whether an active GM is present and warn the user if not
+ * Whether auras are in play for any of the given tokens: their scene holds an aura region, or their actor carries an
+ * aura effect
+ * @param {TokenDocument[]} tokens
+ * @returns {boolean}
+ */
+function aurasInvolved(tokens) {
+  return tokens.some(token => {
+    if (token?.parent?.regions.some(r => r.flags?.auraeffects?.origin)) return true;
+    const actor = token?.actor;
+    if (!actor) return false;
+    for (const effect of actor.allApplicableEffects()) {
+      if (effect.type === "auraeffects.aura") return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * A small helper function to determine whether an active GM is present and warn the user if not. The warning only
+ * shows when auras are actually involved; otherwise there is nothing to miss, and the active GM refreshes all live
+ * scenes on login anyway.
+ * @param {boolean} [involved=true]   Whether the change at hand involves auras
  * @returns {User}
  */
-function checkActiveGM() {
+function checkActiveGM(involved = true) {
   const activeGM = game.users.activeGM;
-  if (!activeGM && !seenWarning) {
+  if (!activeGM && involved && !seenWarning) {
     ui.notifications.warn("AURAEFFECTS.NoActiveGM", { localize: true });
     seenWarning = true;
   }
@@ -42,7 +63,7 @@ async function createToken(token, options, userId) {
   // Exit early for non-initiators, or if no active GM
   if (game.user.id !== userId) return;
   if (!token.actor) return;
-  const activeGM = checkActiveGM();
+  const activeGM = checkActiveGM(aurasInvolved([token]));
   if (!activeGM) return;
   await updateAllAuraRegions(token);
   if (!canReceiveAuras(token)) return;
@@ -69,7 +90,7 @@ async function updateToken(token, updates, options, userId) {
   // Exit early for non-initiators, or if no active GM
   if (game.user.id !== userId) return;
   if (!token.actor) return;
-  const activeGM = checkActiveGM();
+  const activeGM = checkActiveGM(aurasInvolved([token]));
   if (!activeGM) return;
   // Skip e.g. region membership updates, which core issues for every token whenever any region changes
   if (REGION_AFFECTING_KEYS.some(k => k in updates)) await updateAllAuraRegions(token);
@@ -135,7 +156,7 @@ async function addRemoveEffect(effect, options, userId) {
   if (game.user.id !== userId) return;
   const tokens = getActorTokens(effect.target);
   if (!tokens.length) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved(tokens))) return;
   for (const token of tokens) {
     await updateAllAuraRegions(token);
     await refreshConditionalAuras(token);
@@ -159,7 +180,7 @@ async function updateActiveEffect(effect, updates, options, userId) {
     if (!(effect.target instanceof Actor)) return;
     const tokens = getActorTokens(effect.target);
     if (!tokens.length) return;
-    if (!checkActiveGM()) return;
+    if (!checkActiveGM(aurasInvolved(tokens))) return;
     for (const token of tokens) await refreshConditionalAuras(token);
     return;
   }
@@ -203,7 +224,7 @@ async function deleteToken(token, options, userId) {
   if (game.user.id !== userId) return;
   // Unlinked actors are deleted along with their token
   if (!token.actorLink || !token.actor) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved([token]))) return;
   // The token is already gone from its scene, so check the scene instead: it must be live, and must not have handed
   // the actor's auras to another scene
   const homeScene = getHomeScene(token.actor);
@@ -234,7 +255,7 @@ async function updateActor(actor, updates, options, userId) {
   if (game.user.id !== userId) return;
   const tokens = getActorTokens(actor);
   if (!tokens.length) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved(tokens))) return;
   for (const token of tokens) {
     await updateAllAuraRegions(token);
     await refreshConditionalAuras(token);
@@ -250,8 +271,8 @@ async function refreshForItem(item) {
   if (!(item.parent instanceof Actor)) return;
   const tokens = getActorTokens(item.parent);
   if (!tokens.length) return;
-  if (!checkActiveGM()) return;
   const hasAura = item.effects.some(e => e.type === "auraeffects.aura");
+  if (!checkActiveGM(hasAura || aurasInvolved(tokens))) return;
   for (const token of tokens) {
     if (hasAura) await updateAllAuraRegions(token);
     await refreshConditionalAuras(token);
@@ -315,7 +336,7 @@ function onCanvasReady(board) {
 async function addRemoveCombatant(combatant, options, userId) {
   if (game.user.id !== userId) return;
   if (!combatant.token) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved([combatant.token]))) return;
   await updateAllAuraRegions(combatant.token);
   await refreshConditionalAuras(combatant.token);
 }
@@ -328,7 +349,7 @@ async function addRemoveCombatant(combatant, options, userId) {
  */
 async function deleteCombat(combat, options, userId) {
   if (game.user.id !== userId) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved(combat.combatants.map(c => c.token)))) return;
   for (const combatant of combat.combatants) {
     if (!combatant.token) continue;
     await updateAllAuraRegions(combatant.token);
@@ -351,7 +372,7 @@ async function deleteCombat(combat, options, userId) {
 async function updateCombat(combat, updates, options, userId) {
   if (game.user.id !== userId) return;
   if (!("round" in updates) && !("turn" in updates)) return;
-  if (!checkActiveGM()) return;
+  if (!checkActiveGM(aurasInvolved(combat.combatants.map(c => c.token)))) return;
   for (const combatant of combat.combatants) {
     if (!combatant.token) continue;
     await refreshConditionalAuras(combatant.token);

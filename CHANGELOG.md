@@ -2,6 +2,10 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.3.2] — 2026-11-15
+### Fixed
+- **Fewer "no GM logged in" warnings**: Players editing their character without a GM online (adding items, leveling up, changing effects) no longer get the warning unless auras are actually involved, meaning the character carries an aura or there is an aura on its scene. Auras still catch up as soon as a GM logs in.
+
 ## [14.3.1] — 2026-11-09
 ### Changed
 - **French translation**: Tokens are now called « token » instead of « jeton », as in the French translations of Foundry and D&D 5e (thanks Kameleau).
