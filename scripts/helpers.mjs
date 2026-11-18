@@ -402,12 +402,23 @@ function getRegionDataFromEffect(effect, token) {
     restriction.enabled = true;
     restriction.type = effect.system.collisionType;
   }
+  // Limit the aura to the token's height plus the radius above and below, like Foundry's own token emanations
+  // (RegionDocument.createTokenEmanation). Foundry shifts this range along when the token changes elevation.
+  // null means unlimited, the behaviour from before this was added.
+  let elevation = { bottom: null, top: null };
+  if (!game.settings.get("auraeffects", "ignoreElevation")) {
+    const distance = effect.system.distance;
+    const tokenElevation = token._source.elevation;
+    const head = tokenElevation + (token._source.depth * token.parent.grid.distance);
+    elevation = { bottom: tokenElevation - distance, top: head + distance };
+  }
   const regionData = {
     attachment: {
       token: token.id
     },
     color: (effect.system.color ?? tokenOwner?.color)?.css,
     displayMeasurements: false,
+    elevation,
     flags: {
       auraeffects: {
         origin: effect.uuid

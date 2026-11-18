@@ -12,6 +12,7 @@ Active effects that radiate from a token and apply to other tokens nearby, for *
 - **Aura effects**: Turn any active effect into an aura with the **Convert to Aura** button on the effect sheet. Tokens inside the aura's radius receive a copy of the effect. Leaving the radius removes it.
 - **Who it applies to**: Friendly, hostile or any tokens, optionally the source token itself, and an optional conditional script. Secret tokens count as hostile.
 - **Radius**: A fixed distance or a formula using the actor's data (for example `@abilities.cha.mod`). Walls can block the aura, by the collision type you pick.
+- **Elevation**: The aura reaches as far up and down as its radius, measured from the token's feet and top. A creature flying high above the source isn't affected. Can be turned off with a setting.
 - **Stacking**: Auras with the same name either stack or only the best one applies, chosen by a "best" formula.
 - **Combat only / hidden**: Auras can switch off outside combat or while their token is hidden.
 - **Live updates**: Editing an aura, changing the actor, or equipping and unequipping items updates the aura and the copies already applied.
@@ -40,6 +41,7 @@ A GM must be logged in for auras to work. Without one, changes are picked up whe
 - **Aura Effects Default to Visible**: Show the radius of newly created auras to everyone.
 - **Disable Scrolling Text for Aura Effects**: No floating text when auras are added or removed.
 - **Aura Highlight Mode**: Highlight the exact aura shape or the grid spaces it covers.
+- **Ignore Elevation for Auras**: Auras reach any height, ignoring the elevation of tokens.
 - **Prefer Most Recent Aura**: For non-stacking auras with no "best" formula, the newest one wins instead of the existing one.
 
 ---

@@ -1,3 +1,5 @@
+import { scheduleLiveScenesRefresh } from "./queries.mjs";
+
 export function registerSettings() {
   game.settings.register("auraeffects", "preferLatest", {
     name: "AURAEFFECTS.SETTINGS.PreferLatest.Name",
@@ -50,5 +52,17 @@ export function registerSettings() {
       coverage: "REGION.HIGHLIGHT_MODES.coverage.label"
     },
     default: "coverage"
+  });
+  game.settings.register("auraeffects", "ignoreElevation", {
+    name: "AURAEFFECTS.SETTINGS.IgnoreElevation.Name",
+    hint: "AURAEFFECTS.SETTINGS.IgnoreElevation.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    // Rebuild the aura regions on the scenes in play with the new elevation range
+    onChange: () => {
+      if (game.user.isActiveGM) scheduleLiveScenesRefresh();
+    }
   });
 }

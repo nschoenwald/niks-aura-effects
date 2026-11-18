@@ -96,6 +96,10 @@
                 "Hint": "Configure whether aura regions should highlight the true shapes or the grid spaces covered.",
                 "Name": "Aura Highlight Mode"
             },
+            "IgnoreElevation": {
+                "Hint": "When enabled, auras reach any height, as before. By default, a token only receives an aura if it is within the aura's radius above or below the source token.",
+                "Name": "Ignore Elevation for Auras"
+            },
             "PreferLatest": {
                 "Hint": "When enabled, the most recent instance of a non-stackable Aura will be preferred, if there is no \"best\" aura. By default, ties in \"best\" go to the existing effect.",
                 "Name": "Prefer Most Recent Aura"

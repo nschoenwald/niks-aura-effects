@@ -96,6 +96,10 @@
                 "Hint": "Legt fest, ob Aura-Regionen ihre wirklichen Formen oder betroffene Gitterflächen hervorheben sollen.",
                 "Name": "Aura Hervorhebungsmodus"
             },
+            "IgnoreElevation": {
+                "Hint": "Aktiviert reichen Auren unbegrenzt hoch und tief, wie früher. Standardmäßig erhält eine Figur eine Aura nur, wenn sie höchstens den Radius der Aura über oder unter der Ursprungsfigur ist.",
+                "Name": "Höhe bei Auren ignorieren"
+            },
             "PreferLatest": {
                 "Hint": "Aktiviert werden bei nicht-stapelbaren Auren die jüngsten Effekte priorisiert, wenn kein \"bester\" bestimmt werden kann. Standardmäßig gilt sonst der ältere Effekt.",
                 "Name": "Jüngste Aura bevorzugen"

@@ -16,7 +16,7 @@ let seenWarning = false;
 let mixBase = true;
 
 // Token fields which can affect an emitting token's aura regions
-const REGION_AFFECTING_KEYS = ["x", "y", "elevation", "width", "height", "shape", "level", "hidden", "actorId", "actorLink", "delta"];
+const REGION_AFFECTING_KEYS = ["x", "y", "elevation", "width", "height", "depth", "shape", "level", "hidden", "actorId", "actorLink", "delta"];
 
 /**
  * Whether auras are in play for any of the given tokens: their scene holds an aura region, or their actor carries an
