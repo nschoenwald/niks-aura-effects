@@ -100,6 +100,10 @@
                 "Hint": "When enabled, auras reach any height, as before. By default, a token only receives an aura if it is within the aura's radius above or below the source token.",
                 "Name": "Ignore Elevation for Auras"
             },
+            "PaladinAuras": {
+                "Hint": "When a character gains Aura of Protection, its effect is set up as an aura for allies within 10 feet (30 feet with Aura Expansion), inactive while the paladin is Incapacitated or dead. Features that work within it, like Aura of Courage or Aura of Devotion, are added to that effect.",
+                "Name": "Automatic Paladin Auras (D&D 5e)"
+            },
             "PreferLatest": {
                 "Hint": "When enabled, the most recent instance of a non-stackable Aura will be preferred, if there is no \"best\" aura. By default, ties in \"best\" go to the existing effect.",
                 "Name": "Prefer Most Recent Aura"

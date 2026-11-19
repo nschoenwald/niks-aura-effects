@@ -34,6 +34,32 @@ When the active scene changes, a player arrives on another scene, or a GM logs i
 
 A GM must be logged in for auras to work. Without one, changes are picked up when a GM logs in. Players only get the "no GM" warning when a change actually involves auras, not for every edit to their character.
 
+### D&D 5e: paladin auras
+
+When a character gains **Aura of Protection**, its effect is set up as an aura automatically:
+
+- allies and the paladin within **10 feet**, or **30 feet** with **Aura Expansion** (follows the paladin class's aura scale value, 2024 and 2014 class),
+- inactive while the paladin is **Incapacitated, Paralyzed, Petrified, Stunned, Unconscious or dead**,
+- the Charisma bonus is the paladin's, and with several paladins each creature gets the **strongest** one.
+
+**One effect for everything.** The always-on features that work inside the aura are added to the Aura of Protection effect: **Aura of Courage**, **Aura of Devotion**, **Aura of Warding** and **Aura of Deathly Endurance** (World of Warcraft). Their changes and conditions become part of it, and its description gets a section with each feature's rules text. Allies receive one effect with all the benefits instead of several. Each feature keeps its own effect as the source but it no longer applies by itself, so nothing is doubled:
+
+- turn a feature's effect off (on the feature) to take it back out of the aura, or edit it to change what the aura gives,
+- removing the feature removes its benefit from the aura,
+- your own edits to the Aura of Protection effect (extra changes, a note in the description) are kept.
+
+Because everything rides on one effect, a creature inside the auras of two paladins gets all the benefits of the stronger paladin's aura, matching the rule that a creature benefits from only one Aura of Protection at a time.
+
+**Smite of Protection** and **Aura of Elemental Shielding** (Heroes of Faerûn) are switched on by hand, so they stay separate auras with the same area and conditions, off until you enable them. The 2014 versions of Aura of Protection, Courage and Devotion come without an effect and get one.
+
+Features are recognized by their identifier, so this works in every language. Effects that already are auras are never changed.
+
+**Existing paladins**: for characters who had these features before, run the **Set Up Paladin Auras (D&D 5e)** macro from the **Aura Effects Macros** compendium once as GM. It goes through every actor in the Actors sidebar and every unlinked token on every scene, ignores the setting, leaves actors without these features alone, and is safe to run again. The comment at the top of the macro explains what it changes. To set up a single actor instead:
+
+```js
+await game.modules.get("auraeffects").api.configurePaladinAuras(game.actors.getName("Paladin Name"));
+```
+
 ---
 
 ## ⚙️ Settings
@@ -42,14 +68,16 @@ A GM must be logged in for auras to work. Without one, changes are picked up whe
 - **Disable Scrolling Text for Aura Effects**: No floating text when auras are added or removed.
 - **Aura Highlight Mode**: Highlight the exact aura shape or the grid spaces it covers.
 - **Ignore Elevation for Auras**: Auras reach any height, ignoring the elevation of tokens.
+- **Automatic Paladin Auras (D&D 5e)**: Set up Aura of Protection and the features working inside it as auras when a character gains them. On by default.
 - **Prefer Most Recent Aura**: For non-stacking auras with no "best" formula, the newest one wins instead of the existing one.
 
 ---
 
 ## 🤝 Compatibility
 
-- **Game systems**: System-agnostic. D&D 5e: auras applied by a transformed actor are cleaned up when it transforms or reverts.
+- **Game systems**: System-agnostic. D&D 5e: paladin auras set themselves up (see above), and auras applied by a transformed actor are cleaned up when it transforms or reverts.
 - **Active Auras**: A macro in the module's compendium converts Active Auras effects to Aura Effects.
+- **Macros compendium**: "Migrate from Active Auras" and "Set Up Paladin Auras (D&D 5e)".
 
 ---
 

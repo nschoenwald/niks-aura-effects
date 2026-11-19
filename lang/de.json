@@ -100,6 +100,10 @@
                 "Hint": "Aktiviert reichen Auren unbegrenzt hoch und tief, wie früher. Standardmäßig erhält eine Figur eine Aura nur, wenn sie höchstens den Radius der Aura über oder unter der Ursprungsfigur ist.",
                 "Name": "Höhe bei Auren ignorieren"
             },
+            "PaladinAuras": {
+                "Hint": "Erhält ein Charakter die Aura des Schutzes, wird ihr Effekt als Aura für Verbündete im Umkreis von 3 m (9 m mit Auraerweiterung) eingerichtet, inaktiv, solange der Paladin kampfunfähig oder tot ist. Merkmale, die in ihr wirken, etwa Aura des Mutes oder Aura der Hingabe, werden diesem Effekt hinzugefügt.",
+                "Name": "Automatische Paladin-Auren (D&D 5e)"
+            },
             "PreferLatest": {
                 "Hint": "Aktiviert werden bei nicht-stapelbaren Auren die jüngsten Effekte priorisiert, wenn kein \"bester\" bestimmt werden kann. Standardmäßig gilt sonst der ältere Effekt.",
                 "Name": "Jüngste Aura bevorzugen"

@@ -5,7 +5,7 @@ import { applyAuraEffects, deleteEffects, refreshLiveScenesQuery, scheduleLiveSc
 import { registerSettings } from "./settings.mjs";
 import { migrate } from "./migrations.mjs";
 import { api } from "./api.mjs";
-import { registerDnd5eHooks } from "./systems/dnd5e.mjs";
+import { registerDnd5eHooks, registerDnd5eSettings } from "./systems/dnd5e.mjs";
 
 /** @import { ActiveEffect, TokenDocument, User } from "@client/documents/_module.mjs"; */
 
@@ -181,7 +181,11 @@ async function updateActiveEffect(effect, updates, options, userId) {
     const tokens = getActorTokens(effect.target);
     if (!tokens.length) return;
     if (!checkActiveGM(aurasInvolved(tokens))) return;
-    for (const token of tokens) await refreshConditionalAuras(token);
+    for (const token of tokens) {
+      // The effect may change the actor's own statuses, which conditional scripts of the auras it emits can check
+      await updateAllAuraRegions(token);
+      await refreshConditionalAuras(token);
+    }
     return;
   }
   const actor = (effect.parent instanceof Actor) ? effect.parent : effect.parent?.parent;
@@ -274,7 +278,8 @@ async function refreshForItem(item) {
   const hasAura = item.effects.some(e => e.type === "auraeffects.aura");
   if (!checkActiveGM(hasAura || aurasInvolved(tokens))) return;
   for (const token of tokens) {
-    if (hasAura) await updateAllAuraRegions(token);
+    // Also without an aura on the item: its effects may change statuses which the actor's own auras check
+    await updateAllAuraRegions(token);
     await refreshConditionalAuras(token);
   }
 }
@@ -440,8 +445,9 @@ function registerHooks() {
 
   // System-specific hooks
   switch (game.system.id) {
-    case "dnd5e": 
+    case "dnd5e":
       registerDnd5eHooks();
+      registerDnd5eSettings();
       break;
   }
 }

@@ -2,6 +2,18 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.5.0] — 2026-11-19
+### Added
+- **Paladin auras set themselves up (D&D 5e)**: When a character gains Aura of Protection, its effect becomes a working aura right away. Allies within 10 feet get the Charisma bonus to saving throws, 30 feet once the paladin has Aura Expansion. The aura switches off while the paladin is Incapacitated, Paralyzed, Petrified, Stunned, Unconscious or dead. With several paladins, each creature gets the strongest Aura of Protection.
+- **One effect for the whole aura**: Aura of Courage, Aura of Devotion, Aura of Warding and Aura of Deathly Endurance (World of Warcraft) are added to the Aura of Protection effect instead of being separate effects. Allies get a single "Protected" effect listing every benefit, and its description shows the rules text of each feature. Turning a feature's own effect off on the feature takes it back out of the aura. Removing the feature removes its benefit.
+- Smite of Protection and Aura of Elemental Shielding (Heroes of Faerûn) are switched on by hand, so they stay separate auras with the same area and conditions. They stay off until you enable them.
+- The 2014 versions of Aura of Protection, Courage and Devotion come without an effect and get one.
+- Features that already carry an aura are left as they are, so your own aura settings survive.
+- New setting **Automatic Paladin Auras** to turn this off. For paladins who had these features before this update, run the new **Set Up Paladin Auras (D&D 5e)** macro from the Aura Effects Macros compendium once. It goes through every actor and unlinked token in the world and is safe to run again.
+
+### Fixed
+- **Conditional auras react to their source's conditions**: When an aura's source gains or loses a condition through an existing effect being turned on or off, or an item, creatures inside the aura are now checked again right away instead of on their next move.
+
 ## [14.4.0] — 2026-11-18
 ### Changed
 - **Auras respect elevation**: An aura now only reaches as far up and down as its radius. A flying creature 60 feet above a paladin no longer gets a 10-foot aura. Tall tokens count from their top as well as their feet. Existing auras pick this up the next time they are refreshed, or right away when the setting below is changed.
