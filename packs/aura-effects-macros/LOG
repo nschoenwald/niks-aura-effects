@@ -1,3 +1,15 @@
-2026/11/19-17:06:25.852898 16f3cb000 Recovering log #8
-2026/11/19-17:06:25.854064 16f3cb000 Delete type=3 #6
-2026/11/19-17:06:25.854112 16f3cb000 Delete type=0 #8
+2026/11/20-11:38:10.800013 17179b000 Recovering log #11
+2026/11/20-11:38:10.801219 17179b000 Delete type=0 #11
+2026/11/20-11:38:10.801259 17179b000 Delete type=3 #10
+2026/11/20-11:38:10.802333 172033000 Level-0 table #15: started
+2026/11/20-11:38:10.802521 172033000 Level-0 table #15: 2408 bytes OK
+2026/11/20-11:38:10.802614 172033000 Delete type=0 #13
+2026/11/20-11:38:10.802675 172033000 Manual compaction at level-0 from '\x00' @ 72057594037927935 : 1 .. '\xc3\xbf' @ 0 : 0; will stop at (end)
+2026/11/20-11:38:10.802696 172033000 Manual compaction at level-1 from '\x00' @ 72057594037927935 : 1 .. '\xc3\xbf' @ 0 : 0; will stop at '!macros!auraPaladinSetup' @ 3 : 1
+2026/11/20-11:38:10.802703 172033000 Compacting 1@1 + 1@2 files
+2026/11/20-11:38:10.802876 172033000 Generated table #16@1: 1 keys, 2408 bytes
+2026/11/20-11:38:10.802883 172033000 Compacted 1@1 + 1@2 files => 2408 bytes
+2026/11/20-11:38:10.802933 172033000 compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/11/20-11:38:10.802969 172033000 Delete type=2 #15
+2026/11/20-11:38:10.803012 172033000 Delete type=2 #9
+2026/11/20-11:38:10.803064 172033000 Manual compaction at level-1 from '!macros!auraPaladinSetup' @ 3 : 1 .. '\xc3\xbf' @ 0 : 0; will stop at (end)

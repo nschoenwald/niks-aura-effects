@@ -1,5 +1,5 @@
 import { DISPOSITIONS } from "./constants.mjs";
-import { configurePaladinAuras } from "./systems/dnd5e.mjs";
+import { configureAutoAuras, configurePaladinAuras } from "./systems/dnd5e.mjs";
 
 /**
  * Migrates Active Auras to Aura Effects on all world actors & items, and all _unlocked_ compendium actors & items
@@ -150,6 +150,7 @@ function getMigratedEffectData(oldEffect, oldSettings) {
 }
 
 export const api = {
+  configureAutoAuras,
   configurePaladinAuras,
   migrateActiveAuras
 }

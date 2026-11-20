@@ -2,6 +2,19 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.6.0] — 2026-11-20
+### Added
+- **More auras set themselves up (D&D 5e)**: Besides the paladin's Aura of Protection, these now become working auras automatically:
+  - **Creature traits**, as soon as the creature has them: Aura of Bravery (Questing Knight), Aura of Authority (Hobgoblin Captain and Warlord, Emerald Claw Commander), Marshal Undead (Death Knight, Lord Soth, Necromancer Archmage; only Undead allies), Aura of Loyalty (Houndmaster Loksey; only Beasts) and Gloom Shroud. Auras that the rules switch off while the creature is Incapacitated do so.
+  - **Spells**: Pass without Trace, Holy Aura, Aura of Life, Aura of Purity, Crusader's Mantle, Spirit Guardians (halves enemies' Speed), Aura of Evasion, Tranquility and Alustriel's Mooncloak. Cast the spell and apply its effect to yourself from the chat card: everyone in range gets it, and it ends when your Concentration does. Applied to anyone else, it stays a normal effect.
+  - **Frostmourne** (World of Warcraft): for an attuned paladin, Numb to Cold is added to the Aura of Protection effect and Marshal Undead becomes an aura for Undead allies.
+  - **Empowered Channeling** (Ravenloft bard): the Half Cover within Spirit Guardians becomes an aura you switch on by hand.
+- Spells that come without an effect (Aura of Life, Aura of Purity, Crusader's Mantle, Spirit Guardians, Alustriel's Mooncloak) get one, as do Aura of Authority and Gloom Shroud.
+- The setting is now called **Automatic Auras** and turns all of this off. The macro in the Aura Effects Macros compendium is now called **Set Up Automatic Auras (D&D 5e)** and sets up everything above for actors that existed before.
+
+### Fixed
+- **Unequipped items no longer radiate auras**: An aura on an item that isn't equipped, or needs attunement and isn't attuned, now switches off.
+
 ## [14.5.0] — 2026-11-19
 ### Added
 - **Paladin auras set themselves up (D&D 5e)**: When a character gains Aura of Protection, its effect becomes a working aura right away. Allies within 10 feet get the Charisma bonus to saving throws, 30 feet once the paladin has Aura Expansion. The aura switches off while the paladin is Incapacitated, Paralyzed, Petrified, Stunned, Unconscious or dead. With several paladins, each creature gets the strongest Aura of Protection.

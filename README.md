@@ -15,7 +15,7 @@ Active effects that radiate from a token and apply to other tokens nearby, for *
 - **Elevation**: The aura reaches as far up and down as its radius, measured from the token's feet and top. A creature flying high above the source isn't affected. Can be turned off with a setting.
 - **Stacking**: Auras with the same name either stack or only the best one applies, chosen by a "best" formula.
 - **Combat only / hidden**: Auras can switch off outside combat or while their token is hidden.
-- **Live updates**: Editing an aura, changing the actor, or equipping and unequipping items updates the aura and the copies already applied.
+- **Live updates**: Editing an aura, changing the actor, or equipping and unequipping items updates the aura and the copies already applied. Auras on items that aren't equipped (or not attuned, where required) are off.
 
 ### Which scenes count
 
@@ -34,7 +34,11 @@ When the active scene changes, a player arrives on another scene, or a GM logs i
 
 A GM must be logged in for auras to work. Without one, changes are picked up when a GM logs in. Players only get the "no GM" warning when a change actually involves auras, not for every edit to their character.
 
-### D&D 5e: paladin auras
+### D&D 5e: automatic auras
+
+Paladin features, creature traits and spells that radiate an aura are set up for you. Everything is recognized by its identifier, so this works in every language. Effects that already are auras are never changed, so your own settings survive. The **Automatic Auras** setting turns it off.
+
+#### Paladin
 
 When a character gains **Aura of Protection**, its effect is set up as an aura automatically:
 
@@ -52,12 +56,43 @@ Because everything rides on one effect, a creature inside the auras of two palad
 
 **Smite of Protection** and **Aura of Elemental Shielding** (Heroes of Faerûn) are switched on by hand, so they stay separate auras with the same area and conditions, off until you enable them. The 2014 versions of Aura of Protection, Courage and Devotion come without an effect and get one.
 
-Features are recognized by their identifier, so this works in every language. Effects that already are auras are never changed.
+**Frostmourne** (World of Warcraft): while a paladin is attuned to it, *Numb to Cold* is added to the Aura of Protection effect, and *Marshal Undead* becomes an aura with the same area for Undead allies (not the paladin).
 
-**Existing paladins**: for characters who had these features before, run the **Set Up Paladin Auras (D&D 5e)** macro from the **Aura Effects Macros** compendium once as GM. It goes through every actor in the Actors sidebar and every unlinked token on every scene, ignores the setting, leaves actors without these features alone, and is safe to run again. The comment at the top of the macro explains what it changes. To set up a single actor instead:
+#### Creature traits
+
+Set up as soon as the creature has them, also when it's imported from a compendium. The area is taken from the trait.
+
+| Trait | Who has it | Affects |
+|---|---|---|
+| Aura of Bravery | Questing Knight | allies and itself: immune to Charmed and Frightened |
+| Aura of Authority | Hobgoblin Captain, Hobgoblin Warlord, Emerald Claw Commander | allies and itself: Advantage on attacks and saves; off while Incapacitated |
+| Marshal Undead | Death Knight, Lord Soth, Necromancer Archmage | Undead allies (not itself): Advantage on attacks and saves; off while Incapacitated |
+| Aura of Loyalty | Houndmaster Loksey | Beasts: Advantage on saves; off while Incapacitated. Extra damage and healing stay manual. |
+| Gloom Shroud | Dungeon Master's Guide | every other creature: Disadvantage on Charisma checks and saves |
+| Empowered Channeling | Ravenloft bard | you and allies within Spirit Guardians: Half Cover, switched on by hand |
+
+#### Spells
+
+| Spell | Affects |
+|---|---|
+| Pass without Trace | you and allies: +10 Stealth |
+| Holy Aura | you and allies: Advantage on saves |
+| Aura of Life | you and allies: Necrotic resistance |
+| Aura of Purity | you and allies: Poison resistance |
+| Crusader's Mantle | you and allies: +1d4 Radiant damage with weapons |
+| Spirit Guardians | enemies: Speed halved (the damage stays a saving throw) |
+| Aura of Evasion | you and allies: Advantage on Dexterity saves, not while Incapacitated |
+| Tranquility | you and allies: resistance to bludgeoning, piercing and slashing |
+| Alustriel's Mooncloak | you and allies: Half Cover, Cold, Lightning and Radiant resistance |
+
+Cast the spell, then apply its effect to yourself from the chat card. You become the source of the aura, everyone in range gets the effect, and it ends with your Concentration. Applied to another creature, the effect stays a normal effect and doesn't become a second aura. Parts of these spells that no effect can express (Holy Aura's Disadvantage on attacks against allies, Aura of Life's Hit Point maximum, Aura of Purity's Advantage against conditions) stay manual.
+
+#### Existing actors
+
+For actors that had these features, traits or spells before, run the **Set Up Automatic Auras (D&D 5e)** macro from the **Aura Effects Macros** compendium once as GM. It goes through every actor in the Actors sidebar and every unlinked token on every scene, ignores the setting, leaves actors without any of these alone, and is safe to run again. The comment at the top of the macro explains what it changes. To set up a single actor instead:
 
 ```js
-await game.modules.get("auraeffects").api.configurePaladinAuras(game.actors.getName("Paladin Name"));
+await game.modules.get("auraeffects").api.configureAutoAuras(game.actors.getName("Actor Name"));
 ```
 
 ---
@@ -68,16 +103,16 @@ await game.modules.get("auraeffects").api.configurePaladinAuras(game.actors.getN
 - **Disable Scrolling Text for Aura Effects**: No floating text when auras are added or removed.
 - **Aura Highlight Mode**: Highlight the exact aura shape or the grid spaces it covers.
 - **Ignore Elevation for Auras**: Auras reach any height, ignoring the elevation of tokens.
-- **Automatic Paladin Auras (D&D 5e)**: Set up Aura of Protection and the features working inside it as auras when a character gains them. On by default.
+- **Automatic Auras (D&D 5e)**: Set up paladin auras, creature traits and aura spells automatically (see above). On by default.
 - **Prefer Most Recent Aura**: For non-stacking auras with no "best" formula, the newest one wins instead of the existing one.
 
 ---
 
 ## 🤝 Compatibility
 
-- **Game systems**: System-agnostic. D&D 5e: paladin auras set themselves up (see above), and auras applied by a transformed actor are cleaned up when it transforms or reverts.
+- **Game systems**: System-agnostic. D&D 5e: paladin features, creature traits and aura spells set themselves up (see above), and auras applied by a transformed actor are cleaned up when it transforms or reverts.
 - **Active Auras**: A macro in the module's compendium converts Active Auras effects to Aura Effects.
-- **Macros compendium**: "Migrate from Active Auras" and "Set Up Paladin Auras (D&D 5e)".
+- **Macros compendium**: "Migrate from Active Auras" and "Set Up Automatic Auras (D&D 5e)".
 
 ---
 

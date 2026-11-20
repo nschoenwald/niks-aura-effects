@@ -101,8 +101,8 @@
                 "Name": "Ignore Elevation for Auras"
             },
             "PaladinAuras": {
-                "Hint": "When a character gains Aura of Protection, its effect is set up as an aura for allies within 10 feet (30 feet with Aura Expansion), inactive while the paladin is Incapacitated or dead. Features that work within it, like Aura of Courage or Aura of Devotion, are added to that effect.",
-                "Name": "Automatic Paladin Auras (D&D 5e)"
+                "Hint": "Set up auras automatically: the paladin's Aura of Protection and the features working within it, creature traits like Aura of Authority or Marshal Undead when an actor gains them, and aura spells like Spirit Guardians or Pass without Trace once their effect is applied to the caster.",
+                "Name": "Automatic Auras (D&D 5e)"
             },
             "PreferLatest": {
                 "Hint": "When enabled, the most recent instance of a non-stackable Aura will be preferred, if there is no \"best\" aura. By default, ties in \"best\" go to the existing effect.",

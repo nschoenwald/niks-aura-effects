@@ -55,6 +55,10 @@ export default function AuraActiveEffectDataMixin(ActiveEffectClass) {
      */
     isSuppressedFor(token) {
       if (super.isSuppressed) return true;
+      // System suppression of the item carrying the aura (dnd5e: not equipped, or not attuned when required).
+      // ActiveEffect5e#isSuppressed checks this on the document, which the per-token check here doesn't reach.
+      const item = this.parent.parent;
+      if ((item instanceof Item) && item.areEffectsSuppressed) return true;
       if (this.combatOnly && !(token ?? this.parent.actor)?.inCombat) return true;
       if (this.disableOnHidden && token?.hidden) return true;
       return false;
