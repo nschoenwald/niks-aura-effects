@@ -79,13 +79,14 @@ Set up as soon as the creature has them, also when it's imported from a compendi
 | Holy Aura | you and allies: Advantage on saves |
 | Aura of Life | you and allies: Necrotic resistance |
 | Aura of Purity | you and allies: Poison resistance |
+| Circle of Power | you and allies: carries the effect; the Advantage and no-damage rules come from [Nik's DnD5e Tweaks](https://github.com/nschoenwald/niks-dnd5e-tweaks) |
 | Crusader's Mantle | you and allies: +1d4 Radiant damage with weapons |
 | Spirit Guardians | enemies: Speed halved (the damage stays a saving throw) |
 | Aura of Evasion | you and allies: Advantage on Dexterity saves, not while Incapacitated |
 | Tranquility | you and allies: resistance to bludgeoning, piercing and slashing |
 | Alustriel's Mooncloak | you and allies: Half Cover, Cold, Lightning and Radiant resistance |
 
-Cast the spell, then apply its effect to yourself from the chat card. You become the source of the aura, everyone in range gets the effect, and it ends with your Concentration. Applied to another creature, the effect stays a normal effect and doesn't become a second aura. Parts of these spells that no effect can express (Holy Aura's Disadvantage on attacks against allies, Aura of Life's Hit Point maximum, Aura of Purity's Advantage against conditions) stay manual.
+Cast the spell, then apply its effect to yourself from the chat card. You become the source of the aura, everyone in range gets the effect, and it ends with your Concentration. Applied to another creature, the effect stays a normal effect and doesn't become a second aura. Circle of Power's placed area stays as a marker and no longer applies the effect itself, so nobody gets it twice. Parts of these spells that no effect can express (Holy Aura's Disadvantage on attacks against allies, Aura of Life's Hit Point maximum, Aura of Purity's Advantage against conditions) stay manual.
 
 #### Existing actors
 

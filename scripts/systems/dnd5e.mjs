@@ -58,8 +58,9 @@ const hasChange = (effect, pattern) => (effect.system?.changes ?? []).some(c => 
  * @property {(effect: object) => boolean} [match]   Which existing effects this rule covers. Default: every effect
  *                                                   for `aura`/`merge`, the effects of the casting activity for
  *                                                   `cast`.
- * @property {{ changes?: object[], statuses?: string[] }} [create]   Effect to create when the item has none
- *                                                   matching (named after the item).
+ * @property {{ changes?: object[], statuses?: string[], system?: object, flags?: object, description?: boolean }} [create]
+ *   Effect to create when the item has none matching (named after the item). `description` copies the item's rules
+ *   text.
  * @property {object[]} [fill]                       Changes for matching effects which come without any.
  * @property {boolean} [dropStatuses]                Remove statuses from matching effects (they would be applied).
  * @property {RegExp} [dropChanges]                  Remove changes whose key matches.
@@ -195,6 +196,15 @@ const AUTO_AURAS = {
       }
     }]
   },
+  // The effect has no changes: Nik's DnD5e Tweaks recognizes it by this flag and handles the saves and damage
+  "circle-of-power": {
+    types: ["spell"],
+    effects: [{
+      mode: "cast",
+      distance: 30,
+      create: { description: true, system: { magical: true }, flags: { "niks-dnd5e-tweaks": { circleOfPower: true } } }
+    }]
+  },
   // Arcana Unleashed: no benefit for an Incapacitated creature
   "aura-of-evasion": { types: ["spell"], effects: [{ mode: "cast", distance: 30, script: [TARGET_ACTIVE] }] },
   // World of Warcraft
@@ -223,6 +233,7 @@ export function registerDnd5eHooks() {
   Hooks.on("updateItem", onAutoAuraItemChange);
   Hooks.on("deleteItem", onAutoAuraItemChange);
   Hooks.on("preCreateActiveEffect", onPreCreateCastAura);
+  Hooks.on("preCreateRegion", onPreCreateCircleRegion);
   Hooks.on("createActiveEffect", onAdditionEffectChange);
   Hooks.on("updateActiveEffect", onAdditionEffectChange);
   Hooks.on("deleteActiveEffect", onAdditionEffectChange);
@@ -426,9 +437,17 @@ function configureAutoAuraData(itemData, feature, actor) {
         img: itemData.img,
         type: isAura ? "auraeffects.aura" : "base",
         transfer,
+        description: effectRule.create.description ? stripSecrets(itemData.system?.description?.value) : "",
         statuses: [...(effectRule.create.statuses ?? [])],
-        system: { ...foundry.utils.deepClone(system), changes: foundry.utils.deepClone(effectRule.create.changes ?? []) },
-        flags: { auraeffects: { [flagKey]: feature, ...(isAura ? { originalType: "base" } : {}) } }
+        system: {
+          ...foundry.utils.deepClone(effectRule.create.system ?? {}),
+          ...foundry.utils.deepClone(system),
+          changes: foundry.utils.deepClone(effectRule.create.changes ?? [])
+        },
+        flags: {
+          ...foundry.utils.deepClone(effectRule.create.flags ?? {}),
+          auraeffects: { [flagKey]: feature, ...(isAura ? { originalType: "base" } : {}) }
+        }
       };
       effects.push(effect);
       created.push(effect);
@@ -522,8 +541,16 @@ function getItemsData(items) {
  * @returns {string}
  */
 function getDescriptionSection(name, description) {
-  const text = (description ?? "").replace(/<section[^>]*class="[^"]*\bsecret\b[^"]*"[^>]*>[\s\S]*?<\/section>/g, "").trim();
-  return `<h4>${foundry.utils.escapeHTML(name)}</h4>${text}`;
+  return `<h4>${foundry.utils.escapeHTML(name)}</h4>${stripSecrets(description)}`;
+}
+
+/**
+ * Rules text without secret sections (e.g. "Foundry Note")
+ * @param {string} [description]
+ * @returns {string}
+ */
+function stripSecrets(description) {
+  return (description ?? "").replace(/<section[^>]*class="[^"]*\bsecret\b[^"]*"[^>]*>[\s\S]*?<\/section>/g, "").trim();
 }
 
 function isSameChange(a, b) {
@@ -765,6 +792,22 @@ function onPreCreateCastAura(effect, data, options, userId) {
   delete effectData.flags.auraeffects;
   ActiveEffect.implementation.create(effectData, { parent: actor }).catch(err => console.error(err));
   return false;
+}
+
+/**
+ * Circle of Power's area would apply the effect through a region behavior (dnd5e's, or Nik's DnD5e Tweaks' for other
+ * versions of the spell). Once the spell carries the aura, the area stays as a marker without behaviors, so that
+ * creatures don't receive the effect twice. Both modules skip the behaviors on this option.
+ * @param {RegionDocument} region   The region being created
+ * @param {object} data             The initial creation data
+ * @param {object} options          Additional options, passed on to the creation operation
+ */
+function onPreCreateCircleRegion(region, data, options) {
+  const itemUuid = region.getFlag("dnd5e", "item");
+  if (!itemUuid) return;
+  const item = fromUuidSync(itemUuid);
+  if (!item?.effects?.some(e => (e.type === "auraeffects.aura") && (e.getFlag("auraeffects", "autoAura") === "circle-of-power"))) return;
+  options.dnd5e = { ...options.dnd5e, createActivityBehaviors: false };
 }
 
 /* -------------------------------------------- */
