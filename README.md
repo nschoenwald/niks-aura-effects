@@ -89,11 +89,11 @@ Set up as soon as the creature has them, also when it's imported from a compendi
 | Tranquility | you and allies: resistance to bludgeoning, piercing and slashing |
 | Alustriel's Mooncloak | you and allies: Half Cover, Cold, Lightning and Radiant resistance |
 
-Cast the spell, then apply its effect to yourself from the chat card. You become the source of the aura, everyone in range gets the effect, and it ends with your Concentration. Applied to another creature, the effect stays a normal effect and doesn't become a second aura. Circle of Power's placed area stays as a marker and no longer applies the effect itself, so nobody gets it twice. Parts of these spells that no effect can express (Holy Aura's Disadvantage on attacks against allies, Aura of Life's Hit Point maximum, Aura of Purity's Advantage against conditions) stay manual.
+Cast the spell, then apply its effect to yourself from the chat card. You become the source of the aura, everyone in range gets the effect, and it ends with your Concentration. Applied to another creature, the effect stays a normal effect and doesn't become a second aura. Circle of Power's placed area stays as a marker and no longer applies the effect itself, so nobody gets it twice. It is removed when your Concentration on the spell ends. Parts of these spells that no effect can express (Holy Aura's Disadvantage on attacks against allies, Aura of Life's Hit Point maximum, Aura of Purity's Advantage against conditions) stay manual.
 
 #### Existing actors
 
-For actors that had these features, traits or spells before, run the **Set Up Automatic Auras (D&D 5e)** macro from the **Aura Effects Macros** compendium once as GM. It goes through every actor in the Actors sidebar and every unlinked token on every scene, ignores the setting, leaves actors without any of these alone, and is safe to run again. The comment at the top of the macro explains what it changes. To set up a single actor instead:
+Version 14.7.4 sets up every actor in the Actors sidebar and every unlinked token once, the first time a GM logs in after updating (only with the **Automatic Auras** setting on). After that, for actors imported or changed outside Foundry, run the **Set Up Automatic Auras (D&D 5e)** macro from the **Aura Effects Macros** compendium once as GM. It goes through every actor in the Actors sidebar and every unlinked token on every scene, ignores the setting, leaves actors without any of these alone, and is safe to run again. The comment at the top of the macro explains what it changes. To set up a single actor instead:
 
 ```js
 await game.modules.get("auraeffects").api.configureAutoAuras(game.actors.getName("Actor Name"));

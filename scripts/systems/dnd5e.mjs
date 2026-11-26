@@ -234,6 +234,7 @@ export function registerDnd5eHooks() {
   Hooks.on("deleteItem", onAutoAuraItemChange);
   Hooks.on("preCreateActiveEffect", onPreCreateCastAura);
   Hooks.on("preCreateRegion", onPreCreateCircleRegion);
+  Hooks.on("deleteActiveEffect", onConcentrationEnd);
   Hooks.on("createActiveEffect", onAdditionEffectChange);
   Hooks.on("updateActiveEffect", onAdditionEffectChange);
   Hooks.on("deleteActiveEffect", onAdditionEffectChange);
@@ -808,6 +809,26 @@ function onPreCreateCircleRegion(region, data, options) {
   const item = fromUuidSync(itemUuid);
   if (!item?.effects?.some(e => (e.type === "auraeffects.aura") && (e.getFlag("auraeffects", "autoAura") === "circle-of-power"))) return;
   options.dnd5e = { ...options.dnd5e, createActivityBehaviors: false };
+  // dnd5e doesn't tie placed areas to concentration; mark it so that onConcentrationEnd can remove it
+  region.updateSource({ "flags.auraeffects.castTemplate": true });
+}
+
+/**
+ * When concentration on a spell ends, remove the areas marked by onPreCreateCircleRegion which were placed for it.
+ * dnd5e leaves placed areas behind; for Circle of Power the aura has taken over, so the area would only linger.
+ * @param {ActiveEffect} effect   The effect being deleted
+ */
+function onConcentrationEnd(effect) {
+  if (!game.user.isActiveGM || !(effect.parent instanceof Actor)) return;
+  if ((effect.system?.type !== "concentrating") && !effect.statuses?.has(CONFIG.specialStatusEffects.CONCENTRATING)) return;
+  const itemUuid = effect.flags?.dnd5e?.item?.uuid;
+  if (!itemUuid) return;
+  for (const scene of game.scenes) {
+    const ids = scene.regions
+      .filter(r => r.flags?.auraeffects?.castTemplate && (r.flags.dnd5e?.item === itemUuid))
+      .map(r => r.id);
+    if (ids.length) scene.deleteEmbeddedDocuments("Region", ids).catch(err => console.error(err));
+  }
 }
 
 /* -------------------------------------------- */

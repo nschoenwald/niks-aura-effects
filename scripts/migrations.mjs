@@ -31,6 +31,32 @@ const migrations = {
   "14.7.1": {
     alert: false,
     migrateFunction: showAppliedAuraIcons
+  },
+  "14.7.4": {
+    alert: true,
+    migrateFunction: setUpAutoAuras
+  }
+}
+
+/**
+ * Run the automatic aura setup (D&D 5e) once for every world actor and unlinked token, as the "Set Up Automatic Auras"
+ * macro does.
+ * Items added since 14.5.0 are set up when they're created, but spells and features that actors already had stayed
+ * plain effects until someone ran the macro. Respects the Automatic Auras setting; auras are never changed.
+ */
+async function setUpAutoAuras() {
+  if ((game.system.id !== "dnd5e") || !game.settings.get("auraeffects", "paladinAuras")) return;
+  const { configureAutoAuras } = await import("./systems/dnd5e.mjs");
+  const actors = new Set(game.actors);
+  for (const scene of game.scenes) {
+    for (const token of scene.tokens) if (!token.actorLink && token.actor) actors.add(token.actor);
+  }
+  for (const actor of actors) {
+    try {
+      await configureAutoAuras(actor);
+    } catch (err) {
+      console.error(`Aura Effects | Setting up automatic auras for ${actor.name} failed`, err);
+    }
   }
 }
 

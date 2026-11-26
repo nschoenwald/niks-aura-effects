@@ -2,6 +2,11 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.7.4] — 2026-11-27
+### Fixed
+- **Automatic auras for existing actors (D&D 5e)**: Spells and features that actors already had (for example Circle of Power) are now set up as auras automatically, once, the first time a GM logs in after updating. Before, they stayed normal effects until someone ran the setup macro, so Circle of Power still came from its placed area and its effect didn't show on allies. Requires the **Automatic Auras** setting.
+- **Circle of Power's area disappears with Concentration**: The area placed when casting Circle of Power is now removed when Concentration on the spell ends.
+
 ## [14.7.3] — 2026-11-27
 ### Changed
 - **Faster in combat**: Damage, item uses and effect changes on a creature with an aura (or inside one) no longer re-check the aura after every single change. A burst of changes, such as one attack with several updates, is checked once at the end.
