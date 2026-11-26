@@ -156,13 +156,18 @@ function auraShouldApply(effect, token) {
 /**
  * Remove specified auras, ensuring that any non-stacking auras perform a search for the "next-best"
  * and apply it, if present
- * @param {ActiveEffect[]} effects  The effects which will be removed
- * @param {Scene} scene             The scene on which to perform any necessary logic
+ * and apply it, if present. Removals, replacements and the given additions go to the GM in one request, which makes
+ * them one batch for every client.
+ * @param {ActiveEffect[]} effects                    The effects which will be removed
+ * @param {Scene} scene                               The scene on which to perform any necessary logic
+ * @param {Object<string, string[]>} [toApply={}]     Further auras to apply: Actor UUIDs as keys, lists of source
+ *                                                    ActiveEffect UUIDs as values
  */
-async function removeAndReplaceAuras(effects, scene) {
+async function removeAndReplaceAuras(effects, scene, toApply = {}) {
   const activeGM = game.users.activeGM;
 
   effects = effects.filter(Boolean);
+  if (!effects.length && foundry.utils.isEmpty(toApply)) return;
 
   // Get map of effect name -> tokens removed from (only for non-stacking effects)
   // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
@@ -174,11 +179,9 @@ async function removeAndReplaceAuras(effects, scene) {
     return acc;
   }, {});
 
-  // Remove effects
-  if (effects.length) await activeGM.query("auraeffects.deleteEffects", { effectUuids: effects.map(e => e.uuid) });
-
-  // Get all on-scene aura sources for the effects just deleted, sort by best, apply to tokens as possible
+  // Get all on-scene aura sources for the effects being deleted, sort by best, apply to tokens as possible
   const newBestApplyMap = {};
+  for (const [actorUuid, uuids] of Object.entries(toApply)) (newBestApplyMap[actorUuid] ??= []).push(...uuids);
   Object.keys(effectToRemovedMap).forEach(effectName => {
     const ranked = scene.tokens.reduce((acc, token) => {
       const effect = getActiveAuraEffects(token.actor, token).find(e => (e.system.overrideName.trim() || e.name) === effectName);
@@ -197,7 +200,7 @@ async function removeAndReplaceAuras(effects, scene) {
       newBestApplyMap[targetToken.actor.uuid].push(replacement.effect.uuid);
     }
   });
-  if (!foundry.utils.isEmpty(newBestApplyMap)) return activeGM.query("auraeffects.applyAuraEffects", newBestApplyMap);
+  return activeGM.query("auraeffects.modifyAuras", { remove: effects.map(e => e.uuid), apply: newBestApplyMap });
 }
 
 /**
@@ -240,9 +243,13 @@ function getExtendedTabs(origTabs) {
 
 /**
  * Create or delete all token-attached regions as necessary
- * @param {TokenDocument} token         A specified token document
+ * @param {TokenDocument} token                 A specified token document
+ * @param {Object} [options]
+ * @param {boolean} [options.reevaluate=true]   Re-check the tokens within the token's regions. Not needed when the
+ *                                              token only moved: core then updates the membership of the tokens around
+ *                                              it, and the updateToken hook applies or removes their auras.
  */
-async function updateAllAuraRegions(token) {
+async function updateAllAuraRegions(token, { reevaluate = true } = {}) {
   if (!token.actor) return;
   const activeSourceEffects = getActiveAuraEffects(token.actor, token);
   const attachedAuraRegions = Array.from(token.attachments.regions.filter(r => r.getFlag("auraeffects", "origin")));
@@ -270,6 +277,7 @@ async function updateAllAuraRegions(token) {
   if (toCreate.length || toUpdate.length || toDelete.length) {
     await game.users.activeGM.query("auraeffects.updateRegionsForToken", { tokenUuid: token.uuid, toCreate, toUpdate, toDelete });
   }
+  if (!reevaluate) return;
   // Re-evaluate tokens within retained regions, since the source effect's settings may have changed
   const toRemove = [];
   const toAdd = {};
@@ -285,8 +293,7 @@ async function updateAllAuraRegions(token) {
       }
     }
   }
-  if (toRemove.length) await removeAndReplaceAuras(toRemove, token.parent);
-  if (!foundry.utils.isEmpty(toAdd)) await game.users.activeGM.query("auraeffects.applyAuraEffects", toAdd);
+  await removeAndReplaceAuras(toRemove, token.parent, toAdd);
 }
 
 /**
@@ -307,16 +314,19 @@ async function refreshConditionalAuras(token) {
     if (existingEffect && !shouldApply) toRemove.push(existingEffect);
     else if (!existingEffect && shouldApply) toAdd.push(sourceEffect.uuid);
   }
-  if (toRemove.length) await removeAndReplaceAuras(toRemove, token.parent);
-  if (toAdd.length) await game.users.activeGM.query("auraeffects.applyAuraEffects", {[token.actor.uuid]: toAdd});
+  await removeAndReplaceAuras(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
 }
 
 /**
  * Fully reconcile the auras applied to a token's actor against the aura regions on the token's scene: remove applied
  * auras whose source region the token isn't in (e.g. left over from another scene), and apply any that are missing
  * @param {TokenDocument} token
+ * @param {Object} [options]
+ * @param {Set<string>} [options.entered]   IDs of regions the token just entered. Their non-stacking auras may replace
+ *                                          an applied one of the same name, by the usual "best" rules.
  */
-async function refreshAllAuras(token) {
+async function refreshAllAuras(token, { entered = new Set() } = {}) {
+  if (!token.parent?.tokens.has(token.id)) return;
   if (!canReceiveAuras(token)) return;
   const sceneAuraRegions = token.parent.regions.filter(r => r.getFlag("auraeffects", "origin"));
   const toRemove = [];
@@ -343,11 +353,11 @@ async function refreshAllAuras(token) {
     if (!sourceEffect) continue;
     if (kept.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid))) continue;
     // Don't swap out an already-applied non-stacking aura of the same name
-    if (!sourceEffect.system.canStack && keptNames.has(sourceEffect.system.overrideName?.trim() || sourceEffect.name)) continue;
+    if (!sourceEffect.system.canStack && !entered.has(region.id)
+      && keptNames.has(sourceEffect.system.overrideName?.trim() || sourceEffect.name)) continue;
     if (auraShouldApply(sourceEffect, token)) toAdd.push(sourceEffect.uuid);
   }
-  if (toRemove.length) await removeAndReplaceAuras(toRemove, token.parent);
-  if (toAdd.length) await game.users.activeGM.query("auraeffects.applyAuraEffects", {[token.actor.uuid]: toAdd});
+  await removeAndReplaceAuras(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
 }
 
 /**
@@ -461,6 +471,7 @@ export {
   removeAndReplaceAuras,
   updateAllAuraRegions,
   refreshConditionalAuras,
+  refreshAllAuras,
   refreshLiveScenes,
   syncAppliedAuras,
   auraShouldApply

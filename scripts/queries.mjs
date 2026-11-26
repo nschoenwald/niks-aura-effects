@@ -18,29 +18,49 @@ function refreshLiveScenesQuery() {
 }
 
 /**
+ * Collect the ids of the given Active Effects per parent, skipping effects which are already gone
+ * @param {string[]} effectUuids
+ * @returns {Map<ClientDocument, Set<string>>}
+ */
+function getDeletionsByParent(effectUuids) {
+  const idsByParent = new Map();
+  for (const uuid of new Set(effectUuids)) {
+    const effect = fromUuidSync(uuid);
+    if (!(effect instanceof ActiveEffect) || !effect.parent?.effects.has(effect.id)) continue;
+    if (!idsByParent.has(effect.parent)) idsByParent.set(effect.parent, new Set());
+    idsByParent.get(effect.parent).add(effect.id);
+  }
+  return idsByParent;
+}
+
+/**
+ * Build the batch operations for deletions and creations. Deletions come first, so a removed copy and its replacement
+ * reach every client in one batch.
+ * @param {Map<ClientDocument, Set<string>>} idsByParent
+ * @param {Map<Actor, Object[]>} createsByActor
+ * @returns {Object[]}
+ */
+function getBatchOperations(idsByParent, createsByActor = new Map()) {
+  const animate = !game.settings.get("auraeffects", "disableScrollingText");
+  const operations = [];
+  for (const [parent, ids] of idsByParent) {
+    if (ids.size) operations.push({ action: "delete", documentName: "ActiveEffect", parent, ids: Array.from(ids), animate });
+  }
+  for (const [parent, data] of createsByActor) {
+    if (data.length) operations.push({ action: "create", documentName: "ActiveEffect", parent, data, animate });
+  }
+  return operations;
+}
+
+/**
  * Delete all Active Effects whose UUIDs are provided (ignoring any UUIDs which do NOT correspond to Active Effects)
  * @param {Object} data                 Query input data
  * @param {string[]} data.effectUuids   A list of UUIDs for each Active Effect that should be deleted 
  * @returns {Promise<boolean>}          true
  */
 async function deleteEffects({ effectUuids }) {
-  const disableAnimation = game.settings.get("auraeffects", "disableScrollingText");
   await gmQueue.add(() => {
-    // Batch deletions per parent, skipping effects which are already gone
-    const idsByParent = new Map();
-    for (const uuid of new Set(effectUuids)) {
-      const effect = fromUuidSync(uuid);
-      if (!(effect instanceof ActiveEffect) || !effect.parent?.effects.has(effect.id)) continue;
-      if (!idsByParent.has(effect.parent)) idsByParent.set(effect.parent, []);
-      idsByParent.get(effect.parent).push(effect.id);
-    }
-    const batchOperations = Array.from(idsByParent, ([parent, ids]) => ({
-      action: "delete",
-      documentName: "ActiveEffect",
-      parent,
-      ids,
-      animate: !disableAnimation
-    }));
+    const batchOperations = getBatchOperations(getDeletionsByParent(effectUuids));
     if (batchOperations.length) return foundry.documents.modifyBatch(batchOperations);
   });
   return true;
@@ -86,6 +106,50 @@ function getAppliedEffectData(effect, actor) {
 }
 
 /**
+ * Work out the copies to create for the given actors and auras, skipping auras which are already applied; also
+ * choosing best of multiple if a non-stacking effect, so that only one is applied. Copies being deleted in the same
+ * batch count as gone. A weaker non-stacking copy that gets replaced is added to the deletions.
+ * @param {Object<string, string[]>} actorToEffectsMap    Actor UUIDs as keys, lists of source ActiveEffect UUIDs as values
+ * @param {Map<ClientDocument, Set<string>>} idsByParent  Deletions in the same batch, extended in place
+ * @returns {Map<Actor, Object[]>}                        The effect data to create per actor
+ */
+function getCreations(actorToEffectsMap, idsByParent) {
+  const createsByActor = new Map();
+  for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap)) {
+    const actor = fromUuidSync(actorUuid);
+    // The actor may have been deleted while this request was queued
+    if (!actor) continue;
+    const batchCreate = [];
+    if (!idsByParent.has(actor)) idsByParent.set(actor, new Set());
+    const batchDelete = idsByParent.get(actor);
+    const allEffects = actor.effects.filter(e => !batchDelete.has(e.id));
+    for (const uuid of effectUuids) {
+      // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
+      if (allEffects.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(uuid))) continue;
+      const effect = fromUuidSync(uuid);
+      if (!effect) continue;
+      const effectData = getAppliedEffectData(effect, actor);
+      if (!effect.system.canStack) {
+        const bestValue = effectData.flags.auraeffects.bestValue;
+        const existingEffect = allEffects.find(e => e.flags?.auraeffects?.fromAura && e.name === effectData.name);
+        if (existingEffect) {
+          const currBest = existingEffect.flags.auraeffects.bestValue ?? 0;
+          if (!game.settings.get("auraeffects", "preferLatest") && (currBest >= bestValue)) continue;
+          else if (currBest > bestValue) continue;
+          batchDelete.add(existingEffect.id);
+        }
+      }
+      const existing = batchCreate.find(e => e.name === effectData.name);
+      const existingBestValue = existing?.flags.auraeffects.bestValue;
+      if (existingBestValue === undefined) batchCreate.push(effectData);
+      else if (effectData.flags.auraeffects.bestValue > existingBestValue) batchCreate.findSplice(e => e === existing, effectData);
+    }
+    if (batchCreate.length) createsByActor.set(actor, batchCreate);
+  }
+  return createsByActor;
+}
+
+/**
  * Create potentially multiple Active Effects on potentially multiple Actors, modifying the provided effects as
  * necessary for "aura effect" treatment and skipping effects which already exist; also choosing best of multiple
  * if a non-stacking effect, so that only one is applied
@@ -93,53 +157,23 @@ function getAppliedEffectData(effect, actor) {
  * @returns {Promise<boolean>}                          true
  */
 async function applyAuraEffects(actorToEffectsMap) {
-  const disableAnimation = game.settings.get("auraeffects", "disableScrollingText");
+  return modifyAuras({ apply: actorToEffectsMap });
+}
+
+/**
+ * Remove applied aura copies and apply auras in one batch, so that every client prepares the affected actors and
+ * redraws their tokens once instead of once per step
+ * @param {Object} data
+ * @param {string[]} [data.remove]                    UUIDs of applied copies to delete
+ * @param {Object<string, string[]>} [data.apply]     Actor UUIDs as keys, lists of source ActiveEffect UUIDs as values
+ * @returns {Promise<boolean>}                        true
+ */
+async function modifyAuras({ remove = [], apply = {} } = {}) {
   await gmQueue.add(() => {
-    const allBatchOperations = [];
-    for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap)) {
-      const actor = fromUuidSync(actorUuid);
-      // The actor may have been deleted while this request was queued
-      if (!actor) continue;
-      const batchCreate = [];
-      const batchDelete = [];
-      const allEffects = actor.effects;
-      for (const uuid of effectUuids) {
-        // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
-        if (allEffects.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(uuid))) continue;
-        const effect = fromUuidSync(uuid);
-        if (!effect) continue;
-        const effectData = getAppliedEffectData(effect, actor);
-        if (!effect.system.canStack) {
-          const bestValue = effectData.flags.auraeffects.bestValue;
-          const existingEffect = allEffects.find(e => e.flags?.auraeffects?.fromAura && e.name === effectData.name);
-          if (existingEffect) {
-            const currBest = existingEffect.flags.auraeffects.bestValue ?? 0;
-            if (!game.settings.get("auraeffects", "preferLatest") && (currBest >= bestValue)) continue;
-            else if (currBest > bestValue) continue;
-            batchDelete.push(existingEffect.id);
-          }
-        }
-        const existing = batchCreate.find(e => e.name === effectData.name);
-        const existingBestValue = existing?.flags.auraeffects.bestValue;
-        if (existingBestValue === undefined) batchCreate.push(effectData);
-        else if (effectData.flags.auraeffects.bestValue > existingBestValue) batchCreate.findSplice(e => e === existing, effectData);
-      }
-      if (batchDelete.length) allBatchOperations.push({
-        action: "delete",
-        documentName: "ActiveEffect",
-        parent: actor,
-        ids: batchDelete,
-        animate: !disableAnimation
-      });
-      if (batchCreate.length) allBatchOperations.push({
-        action: "create",
-        documentName: "ActiveEffect",
-        parent: actor,
-        data: batchCreate,
-        animate: !disableAnimation
-      });
-    }
-    if (allBatchOperations.length) return foundry.documents.modifyBatch(allBatchOperations);
+    const idsByParent = getDeletionsByParent(remove);
+    const createsByActor = getCreations(apply, idsByParent);
+    const batchOperations = getBatchOperations(idsByParent, createsByActor);
+    if (batchOperations.length) return foundry.documents.modifyBatch(batchOperations);
   });
   return true;
 }
@@ -224,6 +258,7 @@ async function updateRegionsForToken({tokenUuid, toCreate=[], toUpdate=[], toDel
 export {
   applyAuraEffects,
   deleteEffects,
+  modifyAuras,
   refreshLiveScenesQuery,
   scheduleLiveScenesRefresh,
   updateAppliedEffects,

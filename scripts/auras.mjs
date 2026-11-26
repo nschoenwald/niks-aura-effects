@@ -1,7 +1,7 @@
 import AuraActiveEffectDataMixin from "./AuraActiveEffectData.mjs";
 import AuraActiveEffectSheetMixin from "./AuraActiveEffectSheet.mjs";
-import { auraShouldApply, canReceiveAuras, getActorTokens, getAuraRegions, getFormSystemData, getHomeScene, getLiveScenes, refreshConditionalAuras, removeAndReplaceAuras, syncAppliedAuras, updateAllAuraRegions } from "./helpers.mjs";
-import { applyAuraEffects, deleteEffects, refreshLiveScenesQuery, scheduleLiveScenesRefresh, updateAppliedEffects, updateRegionsForToken } from "./queries.mjs";
+import { auraShouldApply, canReceiveAuras, getActorTokens, getAuraRegions, getFormSystemData, getHomeScene, getLiveScenes, refreshAllAuras, refreshConditionalAuras, removeAndReplaceAuras, syncAppliedAuras, updateAllAuraRegions } from "./helpers.mjs";
+import { applyAuraEffects, deleteEffects, modifyAuras, refreshLiveScenesQuery, scheduleLiveScenesRefresh, updateAppliedEffects, updateRegionsForToken } from "./queries.mjs";
 import { registerSettings } from "./settings.mjs";
 import { migrate } from "./migrations.mjs";
 import { api } from "./api.mjs";
@@ -17,6 +17,58 @@ let mixBase = true;
 
 // Token fields which can affect an emitting token's aura regions
 const REGION_AFFECTING_KEYS = ["x", "y", "elevation", "width", "height", "depth", "shape", "level", "hidden", "actorId", "actorLink", "delta"];
+
+// Of those, the keys which only move or resize the token's regions
+const MOVEMENT_KEYS = new Set(["x", "y", "elevation", "width", "height", "depth", "shape", "level"]);
+
+// Region membership reconciles waiting for movement animations, keyed by token UUID
+const pendingReconciles = new Map();
+
+// The longest a reconcile waits for movement animations, in milliseconds
+const MAX_ANIMATION_WAIT = 10000;
+
+/**
+ * Reconcile a token's applied auras with the regions it is in, once the given tokens have finished their movement
+ * animations on this client. Applying or removing effects makes every client prepare the actor and redraw its token,
+ * which stutters a running animation; waiting also makes the aura change when the token visibly arrives. Requests for
+ * the same token while one waits are merged, and the reconcile reads the state at that time, so a token which moves
+ * in and out again ends up right.
+ * @param {TokenDocument} token             The token whose regions changed
+ * @param {TokenDocument[]} waitFor         The tokens whose movement animations to wait for
+ * @param {string[]} entered                IDs of the aura regions the token entered
+ * @returns {Promise<void>}
+ */
+function scheduleReconcile(token, waitFor, entered) {
+  const pending = pendingReconciles.get(token.uuid);
+  if (pending) {
+    for (const t of waitFor) pending.waitFor.add(t);
+    for (const id of entered) pending.entered.add(id);
+    return pending.promise;
+  }
+  const entry = { waitFor: new Set(waitFor), entered: new Set(entered) };
+  pendingReconciles.set(token.uuid, entry);
+  entry.promise = (async () => {
+    try {
+      // Placeables only exist on the scene this client views; elsewhere there is no animation to wait for. A hidden
+      // browser tab doesn't animate at all, so it doesn't wait, and nothing waits longer than MAX_ANIMATION_WAIT.
+      const deadline = Date.now() + MAX_ANIMATION_WAIT;
+      const getAnimations = () => Array.from(entry.waitFor, t => t.rendered ? t.object.movementAnimationPromise : null)
+        .filter(Boolean);
+      let animations;
+      while (!document.hidden && (Date.now() < deadline) && (animations = getAnimations()).length) {
+        await Promise.race([
+          Promise.allSettled(animations),
+          new Promise(resolve => setTimeout(resolve, deadline - Date.now()))
+        ]);
+      }
+    } finally {
+      pendingReconciles.delete(token.uuid);
+    }
+    if (!game.users.activeGM) return;
+    await refreshAllAuras(token, { entered: entry.entered });
+  })().catch(err => console.error(err));
+  return entry.promise;
+}
 
 /**
  * Whether auras are in play for any of the given tokens: their scene holds an aura region, or their actor carries an
@@ -93,7 +145,8 @@ async function updateToken(token, updates, options, userId) {
   const activeGM = checkActiveGM(aurasInvolved([token]));
   if (!activeGM) return;
   // Skip e.g. region membership updates, which core issues for every token whenever any region changes
-  if (REGION_AFFECTING_KEYS.some(k => k in updates)) await updateAllAuraRegions(token);
+  const regionKeys = REGION_AFFECTING_KEYS.filter(k => k in updates);
+  if (regionKeys.length) await updateAllAuraRegions(token, { reevaluate: regionKeys.some(k => !MOVEMENT_KEYS.has(k)) });
   await refreshConditionalAuras(token);
   // Linked tokens off their actor's home scene must not change the actor's auras
   if (!canReceiveAuras(token)) return;
@@ -117,28 +170,19 @@ async function updateToken(token, updates, options, userId) {
         }
         return acc;
       }, [[], []]);
-    if (toApply.length) await activeGM.query("auraeffects.applyAuraEffects", {[token.actor.uuid]: toApply});
-    await removeAndReplaceAuras(toRemove, token.parent);
+    await removeAndReplaceAuras(toRemove, token.parent, toApply.length ? { [token.actor.uuid]: toApply } : {});
   }
   
-  // Regions change
+  // Regions change: wait for the token and the sources of the regions it entered or left to finish moving
   const priorRegionIds = options._priorRegions?.[token.id];
   if (!priorRegionIds) return;
-  const oldRegions = priorRegionIds.map(i => token.parent.regions.get(i)).filter(r => r && !token.regions.has(r));
-  const originsToRemove = new Set(oldRegions.map(r => r.getFlag("auraeffects", "origin")))
-  // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
-  const toRemove = token.actor.effects.contents.filter(e => {
-    const fromAura = e.getFlag("auraeffects", "fromAura");
-    if (!fromAura) return false;
-    return originsToRemove.has((fromAura === true) ? e.origin : fromAura);
-  });
-  await removeAndReplaceAuras(toRemove, token.parent);
-  const toApply = getAuraRegions(token)
-    .filter(r => !priorRegionIds.includes(r.id))
-    .map(r => fromUuidSync(r.getFlag("auraeffects", "origin")))
-    .filter(e => e && auraShouldApply(e, token))
-    .map(e => e.uuid);
-  if (toApply.length) await activeGM.query("auraeffects.applyAuraEffects", {[token.actor.uuid]: toApply});
+  const prior = new Set(priorRegionIds);
+  const left = priorRegionIds.map(id => token.parent.regions.get(id)).filter(r => r && !token.regions.has(r));
+  const entered = Array.from(token.regions).filter(r => !prior.has(r.id));
+  const changedRegions = [...left, ...entered].filter(r => r.getFlag("auraeffects", "origin"));
+  if (!changedRegions.length) return;
+  const sources = changedRegions.map(r => r.attachment.token).filter(Boolean);
+  await scheduleReconcile(token, [token, ...sources], entered.map(r => r.id));
 }
 
 /**
@@ -455,6 +499,7 @@ function registerHooks() {
 function registerQueries() {
   CONFIG.queries["auraeffects.deleteEffects"] = deleteEffects;
   CONFIG.queries["auraeffects.applyAuraEffects"] = applyAuraEffects;
+  CONFIG.queries["auraeffects.modifyAuras"] = modifyAuras;
   CONFIG.queries["auraeffects.updateAppliedEffects"] = updateAppliedEffects;
   CONFIG.queries["auraeffects.updateRegionsForToken"] = updateRegionsForToken;
   CONFIG.queries["auraeffects.refreshLiveScenes"] = refreshLiveScenesQuery;

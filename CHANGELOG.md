@@ -2,6 +2,10 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.7.2] — 2026-11-27
+### Fixed
+- **Smoother token movement**: Moving a token into or out of an aura no longer makes the movement stutter. The aura now appears or disappears when the token arrives instead of halfway through the move, and swapping one aura for another (for example leaving one paladin's Aura of Protection while inside another's) happens in a single step instead of several.
+
 ## [14.7.1] — 2026-11-27
 ### Fixed
 - **Aura effects show on affected creatures**: Circle of Power, Aura of Protection and every other aura now always show their icon on the creatures they affect. Before, most of them were hidden because the effect's icon setting was "If temporary". Auras whose icon is set to **Never** stay hidden. Effects already applied in your world are updated once when a GM logs in.
