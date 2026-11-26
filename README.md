@@ -15,6 +15,7 @@ Active effects that radiate from a token and apply to other tokens nearby, for *
 - **Elevation**: The aura reaches as far up and down as its radius, measured from the token's feet and top. A creature flying high above the source isn't affected. Can be turned off with a setting.
 - **Stacking**: Auras with the same name either stack or only the best one applies, chosen by a "best" formula.
 - **Combat only / hidden**: Auras can switch off outside combat or while their token is hidden.
+- **Effect icons**: Copies of an aura on other tokens always show their icon on the token and in the effect tray, unless the aura's icon setting is **Never**. The source actor's own copy (auras that also affect the source) stays hidden.
 - **Live updates**: Editing an aura, changing the actor, or equipping and unequipping items updates the aura and the copies already applied. Auras on items that aren't equipped (or not attuned, where required) are off.
 
 ### Which scenes count

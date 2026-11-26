@@ -2,6 +2,10 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.7.1] — 2026-11-27
+### Fixed
+- **Aura effects show on affected creatures**: Circle of Power, Aura of Protection and every other aura now always show their icon on the creatures they affect. Before, most of them were hidden because the effect's icon setting was "If temporary". Auras whose icon is set to **Never** stay hidden. Effects already applied in your world are updated once when a GM logs in.
+
 ## [14.7.0] — 2026-11-22
 ### Added
 - **Circle of Power sets itself up (D&D 5e)**: Cast the spell and apply its effect to yourself from the chat card: you and allies within 30 feet get it, and it ends with your Concentration. With Nik's DnD5e Tweaks, the effect gives Advantage on saves against spells and magical effects, and no damage on a successful save. Without it, the effect is a reminder. The spell's placed area no longer applies the effect as well, so nobody gets it twice. For actors who already have the spell, run the **Set Up Automatic Auras (D&D 5e)** macro once.

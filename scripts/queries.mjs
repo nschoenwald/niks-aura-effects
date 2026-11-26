@@ -77,7 +77,11 @@ function getAppliedEffectData(effect, actor) {
       change.value = Roll.replaceFormulaData(change.value, effect.parent?.getRollData?.());
     }
   }
-  if (actor === effect.actor) effectData.showIcon = CONST.ACTIVE_EFFECT_SHOW_ICON.NEVER;
+  // Copies on the source's own actor stay hidden. Elsewhere, the default "if temporary" would hide the copy (auras have
+  // no duration), so it becomes "always"; an explicit "never" or "always" on the source is kept.
+  const { NEVER, CONDITIONAL, ALWAYS } = CONST.ACTIVE_EFFECT_SHOW_ICON;
+  if (actor === effect.actor) effectData.showIcon = NEVER;
+  else if ((effectData.showIcon ?? CONDITIONAL) === CONDITIONAL) effectData.showIcon = ALWAYS;
   return effectData;
 }
 

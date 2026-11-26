@@ -27,5 +27,29 @@ const migrations = {
         content: _loc("AURAEFFECTS.Migrations.ActiveAurasChatMessage")
       })
     }
+  },
+  "14.7.1": {
+    alert: false,
+    migrateFunction: showAppliedAuraIcons
+  }
+}
+
+/**
+ * Applied aura copies used to keep the source's "if temporary" icon setting, which hides them. Show them always,
+ * except copies on the source's own actor (hidden on purpose) and copies with a duration.
+ */
+async function showAppliedAuraIcons() {
+  const { CONDITIONAL, ALWAYS } = CONST.ACTIVE_EFFECT_SHOW_ICON;
+  const actors = new Set(game.actors);
+  for (const scene of game.scenes) {
+    for (const token of scene.tokens) if (!token.actorLink && token.actor) actors.add(token.actor);
+  }
+  for (const actor of actors) {
+    const updates = actor.effects.filter(e => {
+      const origin = e.getFlag("auraeffects", "fromAura");
+      if ((typeof origin !== "string") || (e.showIcon !== CONDITIONAL) || e.isTemporary) return false;
+      return fromUuidSync(origin, { strict: false })?.actor !== actor;
+    }).map(e => ({ _id: e.id, showIcon: ALWAYS }));
+    if (updates.length) await actor.updateEmbeddedDocuments("ActiveEffect", updates, { animate: false }).catch(err => console.error(err));
   }
 }
