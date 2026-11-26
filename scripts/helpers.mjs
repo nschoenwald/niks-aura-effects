@@ -4,6 +4,25 @@
 // Compiled conditional scripts, keyed by script source
 const compiledScripts = new Map();
 
+// Short-lived results of scene lookups, see memoize()
+const memo = new Map();
+
+/**
+ * Remember the result of a lookup until the current task ends. Aura handlers ask the same questions (which scenes are
+ * live, which scene is an actor's home) once per token in loops, while the answers only change between tasks: user
+ * activity, scene activation and token changes all arrive as separate socket messages.
+ * @param {string} key
+ * @param {Function} fn
+ * @returns {*}
+ */
+function memoize(key, fn) {
+  if (memo.has(key)) return memo.get(key);
+  if (!memo.size) setTimeout(() => memo.clear(), 0);
+  const value = fn();
+  memo.set(key, value);
+  return value;
+}
+
 /**
  * Execute the script on an aura active effect for a given token, returning whether said token should receive
  * the effect or not
@@ -17,13 +36,18 @@ function executeScript(sourceToken, token, effect) {
   if (!script.trim().length) return true;
   const actor = token.actor;
   try {
-    let toEvaluate = compiledScripts.get(script);
-    if (!toEvaluate) {
-      toEvaluate = Function("actor", "token", "sourceToken", "rollData", `return Boolean(${script});`);
-      compiledScripts.set(script, toEvaluate);
+    let compiled = compiledScripts.get(script);
+    if (!compiled) {
+      compiled = {
+        fn: Function("actor", "token", "sourceToken", "rollData", `return Boolean(${script});`),
+        // Roll data is a deep copy of the actor's data; only build it for scripts which use it
+        usesRollData: /\brollData\b|\barguments\b/.test(script)
+      };
+      compiledScripts.set(script, compiled);
     }
     // Placeables only exist for the scene this client is viewing; fall back to the documents otherwise
-    return toEvaluate(actor, token.object ?? token, sourceToken.object ?? sourceToken, actor.getRollData());
+    return compiled.fn(actor, token.object ?? token, sourceToken.object ?? sourceToken,
+      compiled.usesRollData ? actor.getRollData() : undefined);
   } catch (error) {
     console.error(_loc("AURAEFFECTS.Errors.ScriptError", {
       actor: sourceToken.actor.name,
@@ -53,12 +77,14 @@ function getDispositionRelation(tokenA, tokenB) {
  * @returns {Scene[]}
  */
 function getLiveScenes() {
-  const ids = new Set();
-  if (game.scenes?.active) ids.add(game.scenes.active.id);
-  for (const user of game.users ?? []) {
-    if (user.active && !user.isGM && user.viewedScene) ids.add(user.viewedScene);
-  }
-  return Array.from(ids, id => game.scenes.get(id)).filter(Boolean);
+  return memoize("liveScenes", () => {
+    const ids = new Set();
+    if (game.scenes?.active) ids.add(game.scenes.active.id);
+    for (const user of game.users ?? []) {
+      if (user.active && !user.isGM && user.viewedScene) ids.add(user.viewedScene);
+    }
+    return Array.from(ids, id => game.scenes.get(id)).filter(Boolean);
+  });
 }
 
 /**
@@ -69,6 +95,15 @@ function getLiveScenes() {
  * @returns {Scene|null}
  */
 function getHomeScene(actor) {
+  return memoize(`homeScene.${actor.id}`, () => findHomeScene(actor));
+}
+
+/**
+ * Find the home scene of a world actor, see getHomeScene
+ * @param {Actor} actor
+ * @returns {Scene|null}
+ */
+function findHomeScene(actor) {
   const candidates = getLiveScenes().filter(s => s.tokens.some(t => t.actorLink && (t.actorId === actor.id)));
   if (candidates.length < 2) return candidates[0] ?? null;
   const viewed = game.users.find(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER")
@@ -154,53 +189,69 @@ function auraShouldApply(effect, token) {
 }
 
 /**
- * Remove specified auras, ensuring that any non-stacking auras perform a search for the "next-best"
- * and apply it, if present
- * and apply it, if present. Removals, replacements and the given additions go to the GM in one request, which makes
- * them one batch for every client.
+ * Work out which auras to remove and which to apply in their place: non-stacking auras look for the "next-best" aura
+ * of the same name among the aura regions the token is still in
+ * @param {ActiveEffect[]} effects                    The applied copies which will be removed
+ * @param {Scene} scene                               The scene on which to perform any necessary logic
+ * @param {Object<string, string[]>} [toApply={}]     Further auras to apply: Actor UUIDs as keys, lists of source
+ *                                                    ActiveEffect UUIDs as values
+ * @returns {{remove: string[], apply: Object<string, string[]>}}
+ */
+function planRemoveAndReplace(effects, scene, toApply = {}) {
+  effects = effects.filter(Boolean);
+  const apply = {};
+  for (const [actorUuid, uuids] of Object.entries(toApply)) (apply[actorUuid] ??= []).push(...uuids);
+
+  const bestValues = new Map();
+  const getBest = (effect, sourceToken) => {
+    if (!bestValues.has(effect.uuid)) {
+      const bestFormula = effect.system.bestFormula?.trim();
+      // Sources without a formula rank last
+      bestValues.set(effect.uuid, bestFormula
+        ? new Roll(bestFormula, sourceToken.actor.getRollData()).evaluateSync().total : -Infinity);
+    }
+    return bestValues.get(effect.uuid);
+  };
+
+  // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
+  for (const effect of effects) {
+    const fromAura = effect.getFlag("auraeffects", "fromAura");
+    if (fromUuidSync((fromAura === true) ? effect.origin : fromAura)?.system.canStack) continue;
+    const targets = effect.parent.getDependentTokens({ scenes: scene, concreteOnly: true }).filter(canReceiveAuras);
+    for (const targetToken of targets) {
+      // Only auras whose region the token is in can apply; the region and its source must still be there and on
+      const candidates = [];
+      for (const region of getAuraRegions(targetToken)) {
+        if (!scene.regions.has(region.id)) continue;
+        const sourceToken = region.attachment.token;
+        if (!sourceToken || !scene.tokens.has(sourceToken.id)) continue;
+        const candidate = fromUuidSync(region.getFlag("auraeffects", "origin"));
+        if (candidate?.type !== "auraeffects.aura") continue;
+        if ((candidate.system.overrideName?.trim() || candidate.name) !== effect.name) continue;
+        if (candidate.disabled || candidate.system.isSuppressedFor(sourceToken)) continue;
+        candidates.push({ effect: candidate, best: getBest(candidate, sourceToken) });
+      }
+      candidates.sort((a, b) => b.best - a.best);
+      const replacement = candidates.find(c => auraShouldApply(c.effect, targetToken));
+      if (replacement) (apply[targetToken.actor.uuid] ??= []).push(replacement.effect.uuid);
+    }
+  }
+  return { remove: effects.map(e => e.uuid), apply };
+}
+
+/**
+ * Remove specified auras, ensuring that any non-stacking auras perform a search for the "next-best" and apply it, if
+ * present. Removals, replacements and the given additions go to the GM in one request, which makes them one batch for
+ * every client.
  * @param {ActiveEffect[]} effects                    The effects which will be removed
  * @param {Scene} scene                               The scene on which to perform any necessary logic
  * @param {Object<string, string[]>} [toApply={}]     Further auras to apply: Actor UUIDs as keys, lists of source
  *                                                    ActiveEffect UUIDs as values
  */
 async function removeAndReplaceAuras(effects, scene, toApply = {}) {
-  const activeGM = game.users.activeGM;
-
-  effects = effects.filter(Boolean);
-  if (!effects.length && foundry.utils.isEmpty(toApply)) return;
-
-  // Get map of effect name -> tokens removed from (only for non-stacking effects)
-  // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
-  const effectToRemovedMap = effects.reduce((acc, effect) => {
-    const fromAura = effect.getFlag("auraeffects", "fromAura");
-    if (fromUuidSync((fromAura === true) ? effect.origin : fromAura)?.system.canStack) return acc;
-    acc[effect.name] ??= [];
-    acc[effect.name].push(...effect.parent.getDependentTokens({ scenes: scene, concreteOnly: true }).filter(canReceiveAuras));
-    return acc;
-  }, {});
-
-  // Get all on-scene aura sources for the effects being deleted, sort by best, apply to tokens as possible
-  const newBestApplyMap = {};
-  for (const [actorUuid, uuids] of Object.entries(toApply)) (newBestApplyMap[actorUuid] ??= []).push(...uuids);
-  Object.keys(effectToRemovedMap).forEach(effectName => {
-    const ranked = scene.tokens.reduce((acc, token) => {
-      const effect = getActiveAuraEffects(token.actor, token).find(e => (e.system.overrideName.trim() || e.name) === effectName);
-      if (!effect) return acc;
-      const bestFormula = effect.system.bestFormula?.trim();
-      // Sources without a formula rank last
-      const best = bestFormula ? new Roll(bestFormula, token.actor.getRollData()).evaluateSync().total : -Infinity;
-      acc.push({ effect, best });
-      return acc;
-    }, []).sort((a, b) => b.best - a.best);
-
-    for (const targetToken of effectToRemovedMap[effectName]) {
-      const replacement = ranked.find(({ effect }) => auraShouldApply(effect, targetToken));
-      if (!replacement) continue;
-      newBestApplyMap[targetToken.actor.uuid] ??= [];
-      newBestApplyMap[targetToken.actor.uuid].push(replacement.effect.uuid);
-    }
-  });
-  return activeGM.query("auraeffects.modifyAuras", { remove: effects.map(e => e.uuid), apply: newBestApplyMap });
+  const plan = planRemoveAndReplace(effects, scene, toApply);
+  if (!plan.remove.length && foundry.utils.isEmpty(plan.apply)) return;
+  return game.users.activeGM.query("auraeffects.modifyAuras", plan);
 }
 
 /**
@@ -325,9 +376,22 @@ async function refreshConditionalAuras(token) {
  * @param {Set<string>} [options.entered]   IDs of regions the token just entered. Their non-stacking auras may replace
  *                                          an applied one of the same name, by the usual "best" rules.
  */
-async function refreshAllAuras(token, { entered = new Set() } = {}) {
-  if (!token.parent?.tokens.has(token.id)) return;
-  if (!canReceiveAuras(token)) return;
+async function refreshAllAuras(token, options) {
+  const plan = planAllAuras(token, options);
+  if (!plan || (!plan.remove.length && foundry.utils.isEmpty(plan.apply))) return;
+  return game.users.activeGM.query("auraeffects.modifyAuras", plan);
+}
+
+/**
+ * Work out the changes refreshAllAuras makes, without sending them
+ * @param {TokenDocument} token
+ * @param {Object} [options]
+ * @param {Set<string>} [options.entered]
+ * @returns {{remove: string[], apply: Object<string, string[]>, keep: string[]}|null}
+ */
+function planAllAuras(token, { entered = new Set() } = {}) {
+  if (!token.parent?.tokens.has(token.id)) return null;
+  if (!canReceiveAuras(token)) return null;
   const sceneAuraRegions = token.parent.regions.filter(r => r.getFlag("auraeffects", "origin"));
   const toRemove = [];
   const kept = [];
@@ -357,7 +421,9 @@ async function refreshAllAuras(token, { entered = new Set() } = {}) {
       && keptNames.has(sourceEffect.system.overrideName?.trim() || sourceEffect.name)) continue;
     if (auraShouldApply(sourceEffect, token)) toAdd.push(sourceEffect.uuid);
   }
-  await removeAndReplaceAuras(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
+  const plan = planRemoveAndReplace(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
+  plan.keep = kept.map(e => e.uuid);
+  return plan;
 }
 
 /**
@@ -371,13 +437,30 @@ async function refreshLiveScenes() {
   // Without any scene in play there's nothing to reconcile against
   if (!scenes.length) return;
   const tokens = scenes.flatMap(s => s.tokens.filter(t => t.actor));
-  for (const token of tokens) await updateAllAuraRegions(token);
-  for (const token of tokens) await refreshAllAuras(token);
+  // The reconcile below checks every token, so the regions don't need to re-check the tokens within them
+  for (const token of tokens) await updateAllAuraRegions(token, { reevaluate: false });
+  // Collect every token's changes and send them as one batch
+  const remove = new Set();
+  const keep = new Set();
+  const apply = {};
+  for (const token of tokens) {
+    const plan = planAllAuras(token);
+    if (!plan) continue;
+    plan.remove.forEach(uuid => remove.add(uuid));
+    plan.keep.forEach(uuid => keep.add(uuid));
+    for (const [actorUuid, uuids] of Object.entries(plan.apply)) (apply[actorUuid] ??= []).push(...uuids);
+  }
+  // Another token of the same actor may still be within an aura one token left
+  for (const uuid of keep) remove.delete(uuid);
   const presentActorIds = new Set(tokens.filter(t => t.actorLink).map(t => t.actorId));
-  const stale = game.actors
-    .filter(a => !presentActorIds.has(a.id))
-    .flatMap(a => a.effects.filter(e => e.getFlag("auraeffects", "fromAura")));
-  if (stale.length) await activeGM.query("auraeffects.deleteEffects", { effectUuids: stale.map(e => e.uuid) });
+  for (const actor of game.actors) {
+    if (presentActorIds.has(actor.id)) continue;
+    for (const effect of actor.effects) if (effect.getFlag("auraeffects", "fromAura")) remove.add(effect.uuid);
+  }
+  for (const [actorUuid, uuids] of Object.entries(apply)) apply[actorUuid] = Array.from(new Set(uuids));
+  if (remove.size || !foundry.utils.isEmpty(apply)) {
+    await activeGM.query("auraeffects.modifyAuras", { remove: Array.from(remove), apply });
+  }
 }
 
 /**

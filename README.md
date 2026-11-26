@@ -17,6 +17,7 @@ Active effects that radiate from a token and apply to other tokens nearby, for *
 - **Combat only / hidden**: Auras can switch off outside combat or while their token is hidden.
 - **Effect icons**: Copies of an aura on other tokens always show their icon on the token and in the effect tray, unless the aura's icon setting is **Never**. The source actor's own copy (auras that also affect the source) stays hidden.
 - **Smooth movement**: When a token moves into or out of an aura, the effect changes once the token arrives, not while it is still moving, so the movement doesn't stutter. Removing one aura and applying another happens in one step.
+- **Light on busy turns**: Several changes to a creature in a row (damage, item uses, effects) are checked together once they're done, about a tenth of a second later, instead of once per change.
 - **Live updates**: Editing an aura, changing the actor, or equipping and unequipping items updates the aura and the copies already applied. Auras on items that aren't equipped (or not attuned, where required) are off.
 
 ### Which scenes count

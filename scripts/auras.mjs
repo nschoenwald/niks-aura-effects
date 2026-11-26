@@ -27,6 +27,53 @@ const pendingReconciles = new Map();
 // The longest a reconcile waits for movement animations, in milliseconds
 const MAX_ANIMATION_WAIT = 10000;
 
+// Actor refreshes waiting for a burst of updates to end, keyed by actor UUID
+const pendingActorRefreshes = new Map();
+
+// How long an actor refresh waits for further updates, and the longest it may be put off, in milliseconds
+const ACTOR_REFRESH_DELAY = 100;
+const MAX_ACTOR_REFRESH_DELAY = 500;
+
+// Actor refreshes run one after another
+let actorRefreshChain = Promise.resolve();
+
+/**
+ * Refresh an actor's aura regions, the auras around its tokens and its conditional auras once a burst of updates has
+ * ended. Damage, item uses and effect changes often come as several updates in a row (e.g. midi-qol); each refresh
+ * re-checks every token within the actor's auras, so they are merged into one.
+ * @param {Actor} actor
+ * @param {Object} [options]
+ * @param {ActiveEffect} [options.sync]   A source aura effect whose applied copies to bring up to date
+ */
+function scheduleActorRefresh(actor, { sync } = {}) {
+  if (!actor) return;
+  let entry = pendingActorRefreshes.get(actor.uuid);
+  if (!entry) {
+    entry = { actor, sync: new Set(), since: Date.now() };
+    pendingActorRefreshes.set(actor.uuid, entry);
+  }
+  if (sync) entry.sync.add(sync);
+  clearTimeout(entry.timer);
+  const delay = Math.min(ACTOR_REFRESH_DELAY, Math.max(0, entry.since + MAX_ACTOR_REFRESH_DELAY - Date.now()));
+  entry.timer = setTimeout(() => {
+    pendingActorRefreshes.delete(actor.uuid);
+    actorRefreshChain = actorRefreshChain.then(() => runActorRefresh(entry)).catch(err => console.error(err));
+  }, delay);
+}
+
+/**
+ * Run a refresh scheduled by scheduleActorRefresh
+ * @param {{actor: Actor, sync: Set<ActiveEffect>}} entry
+ */
+async function runActorRefresh({ actor, sync }) {
+  if (!game.users.activeGM) return;
+  for (const token of getActorTokens(actor)) {
+    await updateAllAuraRegions(token);
+    for (const effect of sync) await syncAppliedAuras(effect, token);
+    await refreshConditionalAuras(token);
+  }
+}
+
 /**
  * Reconcile a token's applied auras with the regions it is in, once the given tokens have finished their movement
  * animations on this client. Applying or removing effects makes every client prepare the actor and redraw its token,
@@ -146,8 +193,10 @@ async function updateToken(token, updates, options, userId) {
   if (!activeGM) return;
   // Skip e.g. region membership updates, which core issues for every token whenever any region changes
   const regionKeys = REGION_AFFECTING_KEYS.filter(k => k in updates);
+  const moved = regionKeys.some(k => MOVEMENT_KEYS.has(k));
   if (regionKeys.length) await updateAllAuraRegions(token, { reevaluate: regionKeys.some(k => !MOVEMENT_KEYS.has(k)) });
-  await refreshConditionalAuras(token);
+  // A moved token's conditional auras are checked by the reconcile after its movement animation (below)
+  if (!moved) await refreshConditionalAuras(token);
   // Linked tokens off their actor's home scene must not change the actor's auras
   if (!canReceiveAuras(token)) return;
 
@@ -175,12 +224,16 @@ async function updateToken(token, updates, options, userId) {
   
   // Regions change: wait for the token and the sources of the regions it entered or left to finish moving
   const priorRegionIds = options._priorRegions?.[token.id];
-  if (!priorRegionIds) return;
-  const prior = new Set(priorRegionIds);
-  const left = priorRegionIds.map(id => token.parent.regions.get(id)).filter(r => r && !token.regions.has(r));
-  const entered = Array.from(token.regions).filter(r => !prior.has(r.id));
+  let left = [];
+  let entered = [];
+  if (priorRegionIds) {
+    const prior = new Set(priorRegionIds);
+    left = priorRegionIds.map(id => token.parent.regions.get(id)).filter(r => r && !token.regions.has(r));
+    entered = Array.from(token.regions).filter(r => !prior.has(r.id));
+  }
   const changedRegions = [...left, ...entered].filter(r => r.getFlag("auraeffects", "origin"));
-  if (!changedRegions.length) return;
+  // Without region changes, a move only matters for the conditional auras of the regions the token is in
+  if (!changedRegions.length && !(moved && getAuraRegions(token).length)) return;
   const sources = changedRegions.map(r => r.attachment.token).filter(Boolean);
   await scheduleReconcile(token, [token, ...sources], entered.map(r => r.id));
 }
@@ -201,10 +254,7 @@ async function addRemoveEffect(effect, options, userId) {
   const tokens = getActorTokens(effect.target);
   if (!tokens.length) return;
   if (!checkActiveGM(aurasInvolved(tokens))) return;
-  for (const token of tokens) {
-    await updateAllAuraRegions(token);
-    await refreshConditionalAuras(token);
-  }
+  scheduleActorRefresh(effect.target);
 }
 
 /**
@@ -225,22 +275,15 @@ async function updateActiveEffect(effect, updates, options, userId) {
     const tokens = getActorTokens(effect.target);
     if (!tokens.length) return;
     if (!checkActiveGM(aurasInvolved(tokens))) return;
-    for (const token of tokens) {
-      // The effect may change the actor's own statuses, which conditional scripts of the auras it emits can check
-      await updateAllAuraRegions(token);
-      await refreshConditionalAuras(token);
-    }
+    // The effect may change the actor's own statuses, which conditional scripts of the auras it emits can check
+    scheduleActorRefresh(effect.target);
     return;
   }
   const actor = (effect.parent instanceof Actor) ? effect.parent : effect.parent?.parent;
   const tokens = getActorTokens(actor);
   if (!tokens.length) return;
   if (!checkActiveGM()) return;
-  for (const token of tokens) {
-    await updateAllAuraRegions(token);
-    await syncAppliedAuras(effect, token);
-    await refreshConditionalAuras(token);
-  }
+  scheduleActorRefresh(actor, { sync: effect });
 }
 
 /**
@@ -304,10 +347,7 @@ async function updateActor(actor, updates, options, userId) {
   const tokens = getActorTokens(actor);
   if (!tokens.length) return;
   if (!checkActiveGM(aurasInvolved(tokens))) return;
-  for (const token of tokens) {
-    await updateAllAuraRegions(token);
-    await refreshConditionalAuras(token);
-  }
+  scheduleActorRefresh(actor);
 }
 
 /**
@@ -321,11 +361,8 @@ async function refreshForItem(item) {
   if (!tokens.length) return;
   const hasAura = item.effects.some(e => e.type === "auraeffects.aura");
   if (!checkActiveGM(hasAura || aurasInvolved(tokens))) return;
-  for (const token of tokens) {
-    // Also without an aura on the item: its effects may change statuses which the actor's own auras check
-    await updateAllAuraRegions(token);
-    await refreshConditionalAuras(token);
-  }
+  // Also without an aura on the item: its effects may change statuses which the actor's own auras check
+  scheduleActorRefresh(item.parent);
 }
 
 /**

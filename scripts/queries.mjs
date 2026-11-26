@@ -123,7 +123,7 @@ function getCreations(actorToEffectsMap, idsByParent) {
     if (!idsByParent.has(actor)) idsByParent.set(actor, new Set());
     const batchDelete = idsByParent.get(actor);
     const allEffects = actor.effects.filter(e => !batchDelete.has(e.id));
-    for (const uuid of effectUuids) {
+    for (const uuid of new Set(effectUuids)) {
       // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
       if (allEffects.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(uuid))) continue;
       const effect = fromUuidSync(uuid);

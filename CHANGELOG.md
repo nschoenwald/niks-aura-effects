@@ -2,6 +2,11 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.7.3] — 2026-11-27
+### Changed
+- **Faster in combat**: Damage, item uses and effect changes on a creature with an aura (or inside one) no longer re-check the aura after every single change. A burst of changes, such as one attack with several updates, is checked once at the end.
+- **Less work overall**: Aura conditions only build the creature's full roll data when they use it, replacement auras are looked for only among the auras a creature is actually in, and switching scenes or a GM logging in updates all auras in one step.
+
 ## [14.7.2] — 2026-11-27
 ### Fixed
 - **Smoother token movement**: Moving a token into or out of an aura no longer makes the movement stutter. The aura now appears or disappears when the token arrives instead of halfway through the move, and swapping one aura for another (for example leaving one paladin's Aura of Protection while inside another's) happens in a single step instead of several.
