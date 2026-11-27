@@ -2,6 +2,13 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.9.0] — 2026-11-27
+### Added
+- **Automatic auras stay up to date (D&D 5e)**: When an update changes how an automatic aura is set up (for example its radius, its conditions, who it reaches, or the bonuses of an effect the module created), existing characters and creatures get the change the next time a GM logs in. Features and spells that newly get an automatic aura are set up then too. Anything you changed yourself on such an aura stays as you set it. The first GM login after this update goes through all actors once.
+
+### Changed
+- **Spell auras place their area again (D&D 5e)**: Circle of Power and the other spell auras no longer untick "Place Measured Template" when cast, so animations from Automated Animations or BLFX that start from the area play as before. The area is removed when your Concentration ends, and Nik's DnD5e Tweaks' auto-targeting still targets only the caster.
+
 ## [14.8.2] — 2026-11-27
 ### Fixed
 - **Security**: Players can no longer make the GM's computer create arbitrary scene regions, delete effects that aren't aura copies, or put copies of any effect on any creature. The GM now works out aura areas itself and only copies real auras to creatures on a scene where that aura is.

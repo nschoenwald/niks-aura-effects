@@ -71,9 +71,9 @@ const hasChange = (effect, pattern) => (effect.system?.changes ?? []).some(c => 
  * @property {string[]} [script]                     Conditions, all of which must hold
  * @property {string} [bestFormula]
  * @property {boolean} [nameAfterItem]               Applied copies are named after the item, not the effect
- * @property {boolean} [keepArea]                    `cast` only: still place the spell's area when casting. By default
- *                                                   the aura replaces it; keep it where the area does more (Spirit
- *                                                   Guardians' damage through Nik's DnD5e Tweaks).
+ * @property {boolean} [keepArea]                    `cast` only: the spell's area does more than the aura (Spirit
+ *                                                   Guardians' damage through Nik's DnD5e Tweaks), so targeting stays
+ *                                                   as usual. By default only the caster is targeted.
  */
 
 /**
@@ -268,7 +268,15 @@ export function registerDnd5eSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: true
+    default: true,
+    onChange: () => refreshChangedAutoAuras()
+  });
+  // Fingerprint of the automatic aura rules the world's auras were last brought up to date with
+  game.settings.register("auraeffects", "autoAuraRevision", {
+    scope: "world",
+    config: false,
+    type: String,
+    default: ""
   });
 }
 
@@ -396,8 +404,9 @@ function getCastActivity(itemData, effectIds) {
 }
 
 /**
- * Set up an item's effects by its rule. Effects which already are auras are left as they are, so that customized
- * auras survive being copied to another actor.
+ * Set up an item's effects by its rule. Effects which already are auras keep their own settings, so that customized
+ * auras survive being copied to another actor; only what this module generated and nobody edited is brought up to
+ * date with the rules (refreshAutoAuraEffect).
  * @param {object} itemData   Source data of the item, modified in place
  * @param {string} feature    The item's identifier
  * @param {Actor} actor       The actor owning the item
@@ -487,6 +496,12 @@ function configureAutoAuraData(itemData, feature, actor) {
       if ((mode === "cast") && castActivity) (link[castActivity] ??= []).push(effect._id);
     }
   }
+  // Automatic auras set up earlier (or just now): bring what this module generated up to date with the rules
+  for (const effect of effects) {
+    if (!effect.flags?.auraeffects?.[flagKey] || (effect.type === "enchantment")) continue;
+    if (refreshAutoAuraEffect(effect, rule, feature, itemData, actor) && !converted.includes(effect)
+      && !created.includes(effect)) converted.push(effect);
+  }
   if (!converted.length && !created.length) return null;
 
   const activityEffects = {};
@@ -501,6 +516,204 @@ function configureAutoAuraData(itemData, feature, actor) {
     activityEffects[id] = after;
   }
   return { converted, created, activities: activityEffects };
+}
+
+/* -------------------------------------------- */
+/*  Keeping automatic auras up to date          */
+/* -------------------------------------------- */
+
+/**
+ * Raise to refresh every world's automatic auras on the next GM login after a change the rules in AUTO_AURAS don't
+ * show (e.g. in getAuraSystem). Changes to AUTO_AURAS are picked up by themselves.
+ */
+const AUTO_AURA_CODE_REVISION = 1;
+
+/**
+ * @typedef AutoAuraState
+ * What this module generated for an automatic aura effect, stored in `flags.auraeffects.autoAuraState`.
+ * @property {"create"|"fill"|"convert"} source   Whether the effect was created by the rule, had its empty changes
+ *                                                 filled in, or was an existing effect converted as it was
+ * @property {object} values                       The generated values (nested like the effect's data) the effect
+ *                                                 still has
+ * @property {string[]} edited                     Paths of generated values someone changed, which are left alone
+ */
+
+/**
+ * A fingerprint of the automatic aura rules, so that a GM's login can tell whether they changed since the last
+ * refresh
+ * @returns {string}
+ */
+function getAutoAuraRevision() {
+  const json = JSON.stringify(AUTO_AURAS, (key, value) => {
+    return ((typeof value === "function") || (value instanceof RegExp)) ? String(value) : value;
+  });
+  let hash = 0;
+  for (let i = 0; i < json.length; i++) hash = ((hash * 31) + json.charCodeAt(i)) | 0;
+  return `${AUTO_AURA_CODE_REVISION}.${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * Whether two values of an effect's data are the same, comparing changes by key, type and value, and statuses in
+ * any order
+ * @param {string} path
+ * @param {*} a
+ * @param {*} b
+ * @returns {boolean}
+ */
+function isSameGeneratedValue(path, a, b) {
+  if (path === "system.changes") {
+    return Array.isArray(a) && Array.isArray(b) && (a.length === b.length) && a.every((c, i) => isSameChange(c, b[i]));
+  }
+  if (path === "statuses") {
+    return Array.isArray(a) && Array.isArray(b) && (JSON.stringify([...a].sort()) === JSON.stringify([...b].sort()));
+  }
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/**
+ * The rule an automatic aura effect was set up by
+ * @param {AutoAuraRule} rule
+ * @param {object} effect   Source data of the effect
+ * @returns {AutoAuraEffectRule|undefined}
+ */
+function getEffectRule(rule, effect) {
+  const isAura = effect.type === "auraeffects.aura";
+  return rule.effects.find(r => ((r.mode !== "merge") === isAura) && (!r.match || r.match(effect)));
+}
+
+/**
+ * How an effect set up before 14.9.0 came to be, judged by whether it still looks like what the rule creates
+ * @param {object} effect                 Source data of the effect
+ * @param {AutoAuraEffectRule} effectRule
+ * @returns {"create"|"fill"|"convert"}
+ */
+function guessAutoAuraSource(effect, effectRule) {
+  const changes = effect.system?.changes ?? [];
+  const { create, fill } = effectRule;
+  if (create && isSameGeneratedValue("system.changes", changes, create.changes ?? [])
+    && isSameGeneratedValue("statuses", effect.statuses ?? [], create.statuses ?? [])) return "create";
+  if (fill && isSameGeneratedValue("system.changes", changes, fill)) return "fill";
+  return "convert";
+}
+
+/**
+ * The values this module generates for an automatic aura effect by the current rules, flattened. Not included:
+ * whether the aura shows its radius (the user's default when it was set up), the Aura of Protection family's distance
+ * (follows Aura Expansion, see onAutoAuraItemChange) and what the Aura of Protection's own effect shows (merged by
+ * syncProtectionAura). Name, image, description and whether it's switched on are never touched.
+ * @param {AutoAuraEffectRule} effectRule
+ * @param {string} feature                The item's identifier
+ * @param {object} itemData               Source data of the item
+ * @param {Actor} actor                   The actor owning the item
+ * @param {"create"|"fill"|"convert"} source
+ * @returns {Record<string, *>}
+ */
+function getGeneratedValues(effectRule, feature, itemData, actor, source) {
+  const values = {};
+  if (effectRule.mode !== "merge") {
+    const { showRadius, distanceFormula, ...system } = getAuraSystem(effectRule, itemData, actor);
+    values.system = (effectRule.distance === PROTECTION) ? system : { ...system, distanceFormula };
+  }
+  if (feature !== AURA_OF_PROTECTION) {
+    if ((source === "create") && effectRule.create) {
+      const { create } = effectRule;
+      values.system = {
+        ...values.system,
+        ...foundry.utils.deepClone(create.system ?? {}),
+        changes: foundry.utils.deepClone(create.changes ?? [])
+      };
+      values.statuses = [...(create.statuses ?? [])];
+      if (create.flags) values.flags = foundry.utils.deepClone(create.flags);
+    } else if ((source === "fill") && effectRule.fill) {
+      values.system = { ...values.system, changes: foundry.utils.deepClone(effectRule.fill) };
+    }
+    if (effectRule.dropStatuses) values.statuses = [];
+  }
+  return foundry.utils.flattenObject(values);
+}
+
+/**
+ * Bring an automatic aura effect up to date with its rule, modifying its source data in place. Every value this
+ * module generated is recorded on the effect (AutoAuraState); a value which still is what was recorded gets the
+ * rule's current value, one someone changed is left alone. Effects from before 14.9.0 have no record: their values
+ * which match the current rules are recorded, the others count as changed.
+ * @param {object} effect       Source data of the effect, flagged as an automatic aura
+ * @param {AutoAuraRule} rule
+ * @param {string} feature      The item's identifier
+ * @param {object} itemData     Source data of the item
+ * @param {Actor} actor         The actor owning the item
+ * @returns {boolean}           Whether the effect changed
+ */
+function refreshAutoAuraEffect(effect, rule, feature, itemData, actor) {
+  const effectRule = getEffectRule(rule, effect);
+  if (!effectRule) return false;
+  const state = effect.flags.auraeffects.autoAuraState;
+  const source = state?.source ?? guessAutoAuraSource(effect, effectRule);
+  const target = getGeneratedValues(effectRule, feature, itemData, actor, source);
+  const recorded = state ? foundry.utils.flattenObject(state.values ?? {}) : null;
+  const edited = new Set(state?.edited ?? []);
+  const values = {};
+  let changed = false;
+  for (const [path, value] of Object.entries(target)) {
+    const current = foundry.utils.getProperty(effect, path);
+    if (isSameGeneratedValue(path, current, value)) {
+      values[path] = value;
+      continue;
+    }
+    let unedited = false;
+    if (recorded && Object.hasOwn(recorded, path)) unedited = isSameGeneratedValue(path, current, recorded[path]);
+    // Something the rules newly generate, which the effect doesn't have yet
+    else if (recorded) unedited = !edited.has(path) && (current === undefined);
+    if (!unedited) continue;
+    foundry.utils.setProperty(effect, path, foundry.utils.deepClone(value));
+    values[path] = value;
+    changed = true;
+  }
+  const newState = {
+    source,
+    values: foundry.utils.expandObject(foundry.utils.deepClone(values)),
+    edited: Object.keys(target).filter(path => !Object.hasOwn(values, path)).sort()
+  };
+  if (JSON.stringify(newState) !== JSON.stringify(state ?? null)) {
+    effect.flags.auraeffects.autoAuraState = newState;
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * Set up the automatic auras of every world actor and unlinked token, and bring those set up earlier up to date
+ * @returns {Promise<number>}   The number of items changed
+ */
+export async function setUpWorldAutoAuras() {
+  if ((game.system.id !== "dnd5e") || !game.settings.get("auraeffects", "paladinAuras")) return 0;
+  const actors = new Set(game.actors);
+  for (const scene of game.scenes) {
+    for (const token of scene.tokens) if (!token.actorLink && token.actor) actors.add(token.actor);
+  }
+  let count = 0;
+  for (const actor of actors) {
+    try {
+      count += (await configureAutoAuras(actor)).length;
+    } catch(err) {
+      console.error(`Aura Effects | Setting up automatic auras for ${actor.name} failed`, err);
+    }
+  }
+  return count;
+}
+
+/**
+ * When the automatic aura rules changed since the last time (a module update), bring every world's automatic auras up
+ * to date. Runs on the active GM's login; with Automatic Auras off it waits until they're switched on.
+ */
+export async function refreshChangedAutoAuras() {
+  if ((game.system.id !== "dnd5e") || !game.user.isActiveGM) return;
+  if (!game.settings.get("auraeffects", "paladinAuras")) return;
+  const revision = getAutoAuraRevision();
+  if (game.settings.get("auraeffects", "autoAuraRevision") === revision) return;
+  const count = await setUpWorldAutoAuras();
+  if (count) console.log(`Aura Effects | Brought the automatic auras of ${count} items up to date`);
+  await game.settings.set("auraeffects", "autoAuraRevision", revision);
 }
 
 /* -------------------------------------------- */
@@ -871,10 +1084,10 @@ function getCastAuras(activity) {
 }
 
 /**
- * Casting a spell whose aura replaces its area doesn't place the area: the aura shows the radius and follows the
- * caster, and nothing (Nik's DnD5e Tweaks' area targeting included) picks up the creatures in a stale area. The usage
- * dialog still offers the checkbox, unticked.
- * dnd5e also records the user's current targets on the usage card (e.g. the enemy of the last attack, or everyone in an
+ * The spell's area is still placed as configured (the "place measured template" checkbox is left alone), since
+ * animation modules such as Automated Animations or BLFX may hang their effects on it. Removed when Concentration ends
+ * (see onConcentrationEnd); Nik's DnD5e Tweaks' area targeting only targets the caster (onTemplateTargetFilter).
+ * dnd5e records the user's current targets on the usage card (e.g. the enemy of the last attack, or everyone in an
  * earlier area), and the card's effect tray applies to those in "Targeted" mode. The aura reaches everyone in range by
  * itself, so the card records only the caster, like Nik's DnD5e Tweaks does for activities that affect "Self". The
  * user's own targets are left alone.
@@ -887,7 +1100,6 @@ function onPreUseCastAura(activity, usageConfig, dialogConfig, messageConfig) {
   if (midiAppliesItemEffects()) return;
   const auras = getCastAuras(activity);
   if (!auras.length || auras.some(a => a.rule.keepArea)) return;
-  if (usageConfig?.create) usageConfig.create.measuredTemplate = false;
   const system = messageConfig?.data?.system;
   if (!Array.isArray(system?.targets)) return;
   const token = activity.getUsageToken?.() ?? activity.item.actor.getActiveTokens()[0]?.document;
@@ -1027,7 +1239,7 @@ export async function configureAutoAuras(actor) {
       transfer: e.transfer,
       statuses: e.statuses,
       system: _replace(e.system),
-      "flags.auraeffects": e.flags.auraeffects
+      flags: { ...e.flags, auraeffects: _replace(e.flags.auraeffects) }
     })), options);
     if (result.created.length) await item.createEmbeddedDocuments("ActiveEffect", result.created, { ...options, keepId: true });
     const activityUpdate = getItemUpdate(itemData, result.activities);

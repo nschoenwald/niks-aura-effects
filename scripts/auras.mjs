@@ -5,7 +5,7 @@ import { applyAuraEffects, deleteEffects, modifyAuras, refreshLiveScenesQuery, s
 import { registerSettings } from "./settings.mjs";
 import { migrate } from "./migrations.mjs";
 import { api } from "./api.mjs";
-import { registerDnd5eHooks, registerDnd5eSettings } from "./systems/dnd5e.mjs";
+import { refreshChangedAutoAuras, registerDnd5eHooks, registerDnd5eSettings } from "./systems/dnd5e.mjs";
 
 /** @import { ActiveEffect, TokenDocument, User } from "@client/documents/_module.mjs"; */
 
@@ -589,7 +589,8 @@ Hooks.once("ready", () => {
       });
       game.settings.set("auraeffects", "seenSystemWarning", true);
     }
-    migrate();
+    // Then bring automatic auras (D&D 5e) up to date if their rules changed with this version
+    migrate().then(() => refreshChangedAutoAuras()).catch(err => console.error(err));
     // Catch up on anything that changed while no GM was around to process it
     scheduleLiveScenesRefresh();
   }
