@@ -35,6 +35,11 @@ const migrations = {
   "14.7.4": {
     alert: true,
     migrateFunction: setUpAutoAuras
+  },
+  // Again, for Aura of Warding copies without an effect, which 14.7.4 couldn't set up
+  "14.7.5": {
+    alert: true,
+    migrateFunction: setUpAutoAuras
   }
 }
 

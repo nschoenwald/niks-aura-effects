@@ -39,7 +39,7 @@ A GM must be logged in for auras to work. Without one, changes are picked up whe
 
 ### D&D 5e: automatic auras
 
-Paladin features, creature traits and spells that radiate an aura are set up for you. Everything is recognized by its identifier, so this works in every language. Effects that already are auras are never changed, so your own settings survive. The **Automatic Auras** setting turns it off.
+Paladin features, creature traits and spells that radiate an aura are set up for you. Everything is recognized by its identifier, so this works in every language. Effects that already are auras are never changed, so your own settings survive. A feature or spell that already carries an aura you made yourself doesn't get a second one. The **Automatic Auras** setting turns it off.
 
 #### Paladin
 
@@ -49,7 +49,7 @@ When a character gains **Aura of Protection**, its effect is set up as an aura a
 - inactive while the paladin is **Incapacitated, Paralyzed, Petrified, Stunned, Unconscious or dead**,
 - the Charisma bonus is the paladin's, and with several paladins each creature gets the **strongest** one.
 
-**One effect for everything.** The always-on features that work inside the aura are added to the Aura of Protection effect: **Aura of Courage**, **Aura of Devotion**, **Aura of Warding** and **Aura of Deathly Endurance** (World of Warcraft). Their changes and conditions become part of it, and its description gets a section with each feature's rules text. Allies receive one effect with all the benefits instead of several. Each feature keeps its own effect as the source but it no longer applies by itself, so nothing is doubled:
+**One effect for everything.** The always-on features that work inside the aura are added to the Aura of Protection effect: **Aura of Courage**, **Aura of Devotion**, **Aura of Warding**, **Aura of Alacrity** and **Aura of Deathly Endurance** (World of Warcraft). Their changes and conditions become part of it, and its description gets a section with each feature's rules text. Allies receive one effect with all the benefits instead of several. Each feature keeps its own effect as the source but it no longer applies by itself, so nothing is doubled:
 
 - turn a feature's effect off (on the feature) to take it back out of the aura, or edit it to change what the aura gives,
 - removing the feature removes its benefit from the aura,
@@ -57,7 +57,7 @@ When a character gains **Aura of Protection**, its effect is set up as an aura a
 
 Because everything rides on one effect, a creature inside the auras of two paladins gets all the benefits of the stronger paladin's aura, matching the rule that a creature benefits from only one Aura of Protection at a time.
 
-**Smite of Protection** and **Aura of Elemental Shielding** (Heroes of Faerûn) are switched on by hand, so they stay separate auras with the same area and conditions, off until you enable them. The 2014 versions of Aura of Protection, Courage and Devotion come without an effect and get one.
+**Smite of Protection** and **Aura of Elemental Shielding** (Heroes of Faerûn) are switched on by hand, so they stay separate auras with the same area and conditions, off until you enable them. Features that come without an effect get one with the book's benefits: the 2014 versions of Aura of Protection, Courage and Devotion, Aura of Deathly Endurance, and copies of Aura of Warding or Smite of Protection whose effect was deleted. **Aura of Alacrity** gives allies the 10 feet of Speed while they are in the aura; the rules let them keep it until the end of their next turn after leaving, which stays manual. Still manual: the capstones that imbue the aura for a while (Holy Nimbus, Elder Champion, Avenging Angel, Holy Deliverance) and Lightbringer's Aura.
 
 **Frostmourne** (World of Warcraft): while a paladin is attuned to it, *Numb to Cold* is added to the Aura of Protection effect, and *Marshal Undead* becomes an aura with the same area for Undead allies (not the paladin).
 

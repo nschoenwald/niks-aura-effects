@@ -58,9 +58,10 @@ const hasChange = (effect, pattern) => (effect.system?.changes ?? []).some(c => 
  * @property {(effect: object) => boolean} [match]   Which existing effects this rule covers. Default: every effect
  *                                                   for `aura`/`merge`, the effects of the casting activity for
  *                                                   `cast`.
- * @property {{ changes?: object[], statuses?: string[], system?: object, flags?: object, description?: boolean }} [create]
+ * @property {{ changes?: object[], statuses?: string[], system?: object, flags?: object, description?: boolean,
+ *   disabled?: boolean }} [create]
  *   Effect to create when the item has none matching (named after the item). `description` copies the item's rules
- *   text.
+ *   text; `disabled` creates it switched off, for effects switched on by hand.
  * @property {object[]} [fill]                       Changes for matching effects which come without any.
  * @property {boolean} [dropStatuses]                Remove statuses from matching effects (they would be applied).
  * @property {RegExp} [dropChanges]                  Remove changes whose key matches.
@@ -102,8 +103,18 @@ const AUTO_AURAS = {
   },
   "aura-of-courage": { paladin: true, effects: [{ mode: "merge", create: { changes: [add("system.traits.ci.value", "frightened")] } }] },
   "aura-of-devotion": { paladin: true, effects: [{ mode: "merge", create: { changes: [add("system.traits.ci.value", "charmed")] } }] },
+  // Player's Handbook, Oath of Glory: allies in the aura get the paladin's Speed bonus. The rules keep it until the end of
+  // their next turn once they enter or start their turn there; the aura gives it while they are inside
+  "aura-of-alacrity": {
+    paladin: true,
+    effects: [{ mode: "merge", create: { changes: [add("system.attributes.movement.bonus", "10")] } }]
+  },
   // Player's Handbook, Oath of the Ancients
-  "aura-of-warding": { paladin: true, effects: [{ mode: "merge" }] },
+  "aura-of-warding": {
+    paladin: true,
+    // The PHB effect; added for copies of the feature which lost it or never had one
+    effects: [{ mode: "merge", create: { changes: ["necrotic", "psychic", "radiant"].map(t => add("system.traits.dr.value", t)) } }]
+  },
   // World of Warcraft, Oath of the Ebon Blade
   "aura-of-deathly-endurance": {
     paladin: true,
@@ -111,7 +122,7 @@ const AUTO_AURAS = {
   },
   // Player's Handbook, Oath of Glory capstone: a toggled effect granting Half Cover, kept as its own aura so it can
   // be switched on from the actor
-  "smite-of-protection": { paladin: true, effects: [PALADIN_AURA] },
+  "smite-of-protection": { paladin: true, effects: [{ ...PALADIN_AURA, create: { statuses: ["coverHalf"], disabled: true } }] },
   // Heroes of Faerûn, Oath of the Noble Genies: one toggled effect per damage type, kept as auras for the same reason
   "aura-of-elemental-shielding": { paladin: true, effects: [PALADIN_AURA] },
   // World of Warcraft: Twisted Aura of a paladin attuned to the weapon
@@ -410,6 +421,9 @@ function configureAutoAuraData(itemData, feature, actor) {
 
     // Effects of earlier runs (e.g. a carrier already set up) count as matching, so nothing is created twice
     const configured = effects.some(e => e.flags?.auraeffects?.[flagKey] && (!effectRule.match || effectRule.match(e)));
+    // An aura someone made by hand stands in for the one the rule would create, so the item never gets a second one
+    const ownAura = effects.some(e => (e.type === "auraeffects.aura") && !e.flags?.auraeffects?.paladinAura
+      && !e.flags?.auraeffects?.autoAura);
     const isAura = mode !== "merge";
     const system = isAura ? getAuraSystem(effectRule, itemData, actor) : {};
     const transfer = (mode === "aura");
@@ -431,13 +445,14 @@ function configureAutoAuraData(itemData, feature, actor) {
       converted.push(effect);
     }
 
-    if (!matched.length && !configured && effectRule.create) {
+    if (!matched.length && !configured && !ownAura && effectRule.create) {
       const effect = {
         _id: foundry.utils.randomID(),
         name: itemData.name,
         img: itemData.img,
         type: isAura ? "auraeffects.aura" : "base",
         transfer,
+        disabled: !!effectRule.create.disabled,
         description: effectRule.create.description ? stripSecrets(itemData.system?.description?.value) : "",
         statuses: [...(effectRule.create.statuses ?? [])],
         system: {

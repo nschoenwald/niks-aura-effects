@@ -2,6 +2,14 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.7.5] — 2026-11-27
+### Fixed
+- **No second Aura of Protection (D&D 5e)**: A feature or spell that already carries an aura you made yourself no longer gets an automatic one on top. The 14.7.4 setup added a second Aura of Protection to paladins with a hand-made aura; remove the one you don't want (see below).
+- **Aura of Warding without an effect**: A copy of Aura of Warding without an effect now gets one (Necrotic, Psychic and Radiant resistance) and is added to the Aura of Protection like the others. Smite of Protection without an effect gets one too (Half Cover, switched off until you turn it on). The setup runs once more when a GM logs in after updating.
+- **Aura of Alacrity (Oath of Glory)**: Now part of the Aura of Protection: allies in the aura get the 10 feet of Speed, not only the paladin. Keeping it until the end of their next turn after leaving stays manual.
+
+If a paladin now has two Aura of Protection effects, open the Aura of Protection feature and delete one of them: your own if the automatic one should take over (it includes the oath auras), or the automatic one ("Aura of Protection") if you prefer yours.
+
 ## [14.7.4] — 2026-11-27
 ### Fixed
 - **Automatic auras for existing actors (D&D 5e)**: Spells and features that actors already had (for example Circle of Power) are now set up as auras automatically, once, the first time a GM logs in after updating. Before, they stayed normal effects until someone ran the setup macro, so Circle of Power still came from its placed area and its effect didn't show on allies. Requires the **Automatic Auras** setting.
