@@ -23,17 +23,63 @@ function memoize(key, fn) {
   return value;
 }
 
+// Conditional scripts this module writes itself (automatic auras), which any client may run
+const trustedScripts = new Set();
+
+/**
+ * Mark conditional scripts as safe to run on every client, e.g. the ones generated for automatic auras
+ * @param {Iterable<string>} scripts
+ */
+function registerTrustedScripts(scripts) {
+  for (const script of scripts) if (script?.trim()) trustedScripts.add(script.trim());
+}
+
+/**
+ * Whether this client may run an aura's conditional script. A script is code: run on someone else's client it would
+ * run with that user's rights (on the active GM's, with full rights). So a script runs everywhere only if this module
+ * wrote it or no player can edit the effect (then a GM wrote it); otherwise only on the clients of its players.
+ * @param {ActiveEffect} effect   The source aura effect
+ * @param {string} script         The trimmed script
+ * @returns {boolean}
+ */
+function canRunScript(effect, script) {
+  if (trustedScripts.has(script)) return true;
+  const editableByPlayer = game.users.some(u => !u.isGM && effect.testUserPermission(u, "OWNER"));
+  if (!editableByPlayer) return true;
+  return !game.user.isGM && effect.isOwner;
+}
+
+/**
+ * Evaluate a formula synchronously, without throwing: dice and unknown terms don't stop it, and a formula which
+ * can't be parsed gives the fallback (with a console warning)
+ * @param {string} formula
+ * @param {object} [rollData]
+ * @param {number} [fallback=0]
+ * @returns {number}
+ */
+function evaluateFormula(formula, rollData, fallback = 0) {
+  try {
+    const total = new Roll(formula, rollData).evaluateSync({ strict: false }).total;
+    return Number.isFinite(total) ? total : fallback;
+  } catch (err) {
+    console.warn(`Aura Effects | Could not evaluate the formula "${formula}"`, err);
+    return fallback;
+  }
+}
+
 /**
  * Execute the script on an aura active effect for a given token, returning whether said token should receive
  * the effect or not
  * @param {TokenDocument} sourceToken   The aura-emanating token
  * @param {TokenDocument} token         The potential aura effect recipient token
  * @param {ActiveEffect} effect         The aura effect in question
- * @returns {boolean}                   true if effect should be applied, false if not (including if the script errors)
+ * @returns {boolean|null}              true if effect should be applied, false if not (including if the script
+ *                                      errors), null if this client may not run the script (see canRunScript)
  */
 function executeScript(sourceToken, token, effect) {
-  const script = effect.system.script ?? "";
-  if (!script.trim().length) return true;
+  const script = (effect.system.script ?? "").trim();
+  if (!script.length) return true;
+  if (!canRunScript(effect, script)) return null;
   const actor = token.actor;
   try {
     let compiled = compiledScripts.get(script);
@@ -133,9 +179,12 @@ function canReceiveAuras(token) {
 function getActorTokens(actor) {
   if (!actor) return [];
   if (actor.isToken) return actor.token?.parent ? [actor.token] : [];
-  const scenes = Array.from(new Set([...getLiveScenes(), canvas?.scene].filter(Boolean)));
-  if (!scenes.length) return [];
-  return actor.getDependentTokens({ scenes, concreteOnly: true });
+  // Remembered until the current task ends: the source aura's isSuppressed getter asks on every data preparation
+  return memoize(`actorTokens.${actor.uuid}`, () => {
+    const scenes = Array.from(new Set([...getLiveScenes(), canvas?.scene].filter(Boolean)));
+    if (!scenes.length) return [];
+    return actor.getDependentTokens({ scenes, concreteOnly: true });
+  });
 }
 
 /**
@@ -168,6 +217,7 @@ function getAuraRegions(token) {
  * Returns whether the provided aura effect should apply to the provided token
  * @param {ActiveEffect} effect 
  * @param {TokenDocument} token 
+ * @returns {boolean|null}    null if its conditional script can't run on this client: then neither apply nor remove
  */
 function auraShouldApply(effect, token) {
   // Actorless or sceneless token
@@ -182,10 +232,8 @@ function auraShouldApply(effect, token) {
   // Disposition doesn't match
   const disposition = getDispositionRelation(token, sourceToken);
   if (![0, disposition].includes(effect.system.disposition)) return false;
-  // Script doesn't pass
-  if (!executeScript(sourceToken, token, effect)) return false;
-  // All good
-  return true;
+  // Script doesn't pass, or can't run on this client (null: leave the token as it is)
+  return executeScript(sourceToken, token, effect);
 }
 
 /**
@@ -208,7 +256,7 @@ function planRemoveAndReplace(effects, scene, toApply = {}) {
       const bestFormula = effect.system.bestFormula?.trim();
       // Sources without a formula rank last
       bestValues.set(effect.uuid, bestFormula
-        ? new Roll(bestFormula, sourceToken.actor.getRollData()).evaluateSync().total : -Infinity);
+        ? evaluateFormula(bestFormula, sourceToken.actor.getRollData(), -Infinity) : -Infinity);
     }
     return bestValues.get(effect.uuid);
   };
@@ -216,7 +264,7 @@ function planRemoveAndReplace(effects, scene, toApply = {}) {
   // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
   for (const effect of effects) {
     const fromAura = effect.getFlag("auraeffects", "fromAura");
-    if (fromUuidSync((fromAura === true) ? effect.origin : fromAura)?.system.canStack) continue;
+    if (fromUuidSync((fromAura === true) ? effect.origin : fromAura, { strict: false })?.system?.canStack) continue;
     const targets = effect.parent.getDependentTokens({ scenes: scene, concreteOnly: true }).filter(canReceiveAuras);
     for (const targetToken of targets) {
       // Only auras whose region the token is in can apply; the region and its source must still be there and on
@@ -225,14 +273,14 @@ function planRemoveAndReplace(effects, scene, toApply = {}) {
         if (!scene.regions.has(region.id)) continue;
         const sourceToken = region.attachment.token;
         if (!sourceToken || !scene.tokens.has(sourceToken.id)) continue;
-        const candidate = fromUuidSync(region.getFlag("auraeffects", "origin"));
+        const candidate = fromUuidSync(region.getFlag("auraeffects", "origin"), { strict: false });
         if (candidate?.type !== "auraeffects.aura") continue;
         if ((candidate.system.overrideName?.trim() || candidate.name) !== effect.name) continue;
         if (candidate.disabled || candidate.system.isSuppressedFor(sourceToken)) continue;
         candidates.push({ effect: candidate, best: getBest(candidate, sourceToken) });
       }
       candidates.sort((a, b) => b.best - a.best);
-      const replacement = candidates.find(c => auraShouldApply(c.effect, targetToken));
+      const replacement = candidates.find(c => auraShouldApply(c.effect, targetToken) === true);
       if (replacement) (apply[targetToken.actor.uuid] ??= []).push(replacement.effect.uuid);
     }
   }
@@ -301,10 +349,43 @@ function getExtendedTabs(origTabs) {
  *                                              it, and the updateToken hook applies or removes their auras.
  */
 async function updateAllAuraRegions(token, { reevaluate = true } = {}) {
-  if (!token.actor) return;
+  const plan = planAuraRegions(token);
+  if (!plan) return;
+  const { toCreate, toUpdate, toDelete, retained } = plan;
+  if (toCreate.length || toUpdate.length || toDelete.length) {
+    // The GM works the changes out again from the token: region data from a client is never used
+    await game.users.activeGM.query("auraeffects.updateRegionsForToken", { tokenUuid: token.uuid });
+  }
+  if (!reevaluate) return;
+  // Re-evaluate tokens within retained regions, since the source effect's settings may have changed
+  const toRemove = [];
+  const toAdd = {};
+  for (const [region, sourceEffect] of retained) {
+    for (const currToken of region.tokens) {
+      if (!canReceiveAuras(currToken)) continue;
+      // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
+      const currAppliedEffect = currToken.actor.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid));
+      const shouldApply = auraShouldApply(sourceEffect, currToken);
+      if (currAppliedEffect) {
+        if (shouldApply === false) toRemove.push(currAppliedEffect);
+      } else if (shouldApply === true) {
+        (toAdd[currToken.actor.uuid] ??= []).push(sourceEffect.uuid);
+      }
+    }
+  }
+  await removeAndReplaceAuras(toRemove, token.parent, toAdd);
+}
+
+/**
+ * Work out the aura regions a token should have attached: one per active source aura effect of its actor
+ * @param {TokenDocument} token
+ * @returns {{toCreate: object[], toUpdate: object[], toDelete: string[], retained: Array<[RegionDocument, ActiveEffect]>}|null}
+ */
+function planAuraRegions(token) {
+  if (!token?.actor) return null;
   const activeSourceEffects = getActiveAuraEffects(token.actor, token);
   const attachedAuraRegions = Array.from(token.attachments.regions.filter(r => r.getFlag("auraeffects", "origin")));
-  if (!activeSourceEffects.length && !attachedAuraRegions.length) return;
+  if (!activeSourceEffects.length && !attachedAuraRegions.length) return null;
   const shouldHaveUuids = new Set(activeSourceEffects.map(e => e.uuid));
   const toDelete = attachedAuraRegions.filter(r => !shouldHaveUuids.has(r.flags.auraeffects.origin)).map(r => r.id);
   const toCreate = [];
@@ -325,26 +406,7 @@ async function updateAllAuraRegions(token, { reevaluate = true } = {}) {
     } catch {}
     if (changed) toUpdate.push({_id: existingRegion.id, ...updateData});
   }
-  if (toCreate.length || toUpdate.length || toDelete.length) {
-    await game.users.activeGM.query("auraeffects.updateRegionsForToken", { tokenUuid: token.uuid, toCreate, toUpdate, toDelete });
-  }
-  if (!reevaluate) return;
-  // Re-evaluate tokens within retained regions, since the source effect's settings may have changed
-  const toRemove = [];
-  const toAdd = {};
-  for (const [region, sourceEffect] of retained) {
-    for (const currToken of region.tokens) {
-      if (!canReceiveAuras(currToken)) continue;
-      // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
-      const currAppliedEffect = currToken.actor.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid));
-      if (currAppliedEffect) {
-        if (!auraShouldApply(sourceEffect, currToken)) toRemove.push(currAppliedEffect);
-      } else if (auraShouldApply(sourceEffect, currToken)) {
-        (toAdd[currToken.actor.uuid] ??= []).push(sourceEffect.uuid);
-      }
-    }
-  }
-  await removeAndReplaceAuras(toRemove, token.parent, toAdd);
+  return { toCreate, toUpdate, toDelete, retained };
 }
 
 /**
@@ -357,13 +419,14 @@ async function refreshConditionalAuras(token) {
   const toRemove = [];
   const toAdd = [];
   for (const region of getAuraRegions(token)) {
-    const sourceEffect = fromUuidSync(region.getFlag("auraeffects", "origin"));
-    if (!sourceEffect?.system.script.length) continue;
+    const sourceEffect = fromUuidSync(region.getFlag("auraeffects", "origin"), { strict: false });
+    // The origin may no longer be an aura (reverted with the sheet's Revert button) until its region is removed
+    if ((sourceEffect?.type !== "auraeffects.aura") || !sourceEffect.system.script?.trim()) continue;
     // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
     const existingEffect = token.actor.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid));
     const shouldApply = auraShouldApply(sourceEffect, token);
-    if (existingEffect && !shouldApply) toRemove.push(existingEffect);
-    else if (!existingEffect && shouldApply) toAdd.push(sourceEffect.uuid);
+    if (existingEffect && (shouldApply === false)) toRemove.push(existingEffect);
+    else if (!existingEffect && (shouldApply === true)) toAdd.push(sourceEffect.uuid);
   }
   await removeAndReplaceAuras(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
 }
@@ -401,10 +464,11 @@ function planAllAuras(token, { entered = new Set() } = {}) {
     if (!fromAura) continue;
     const originUuid = (fromAura === true) ? effect.origin : fromAura;
     const originRegions = sceneAuraRegions.filter(r => r.getFlag("auraeffects", "origin") === originUuid);
-    const sourceEffect = fromUuidSync(originUuid);
+    const sourceEffect = fromUuidSync(originUuid, { strict: false });
     if (sourceEffect && originRegions.some(r => token.regions.has(r))) {
-      if (auraShouldApply(sourceEffect, token)) kept.push(effect);
-      else toRemove.push(effect);
+      // A script this client may not run (null) keeps the copy
+      if (auraShouldApply(sourceEffect, token) === false) toRemove.push(effect);
+      else kept.push(effect);
     }
     // Region membership lags behind newly created or reshaped regions; the updateToken hook handles those
     else if (originRegions.some(r => token.testInsideRegion(r))) kept.push(effect);
@@ -413,13 +477,13 @@ function planAllAuras(token, { entered = new Set() } = {}) {
   const keptNames = new Set(kept.map(e => e.name));
   const toAdd = [];
   for (const region of getAuraRegions(token)) {
-    const sourceEffect = fromUuidSync(region.getFlag("auraeffects", "origin"));
-    if (!sourceEffect) continue;
+    const sourceEffect = fromUuidSync(region.getFlag("auraeffects", "origin"), { strict: false });
+    if (sourceEffect?.type !== "auraeffects.aura") continue;
     if (kept.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(sourceEffect.uuid))) continue;
     // Don't swap out an already-applied non-stacking aura of the same name
     if (!sourceEffect.system.canStack && !entered.has(region.id)
       && keptNames.has(sourceEffect.system.overrideName?.trim() || sourceEffect.name)) continue;
-    if (auraShouldApply(sourceEffect, token)) toAdd.push(sourceEffect.uuid);
+    if (auraShouldApply(sourceEffect, token) === true) toAdd.push(sourceEffect.uuid);
   }
   const plan = planRemoveAndReplace(toRemove, token.parent, toAdd.length ? { [token.actor.uuid]: toAdd } : {});
   plan.keep = kept.map(e => e.uuid);
@@ -438,13 +502,26 @@ async function refreshLiveScenes() {
   if (!scenes.length) return;
   const tokens = scenes.flatMap(s => s.tokens.filter(t => t.actor));
   // The reconcile below checks every token, so the regions don't need to re-check the tokens within them
-  for (const token of tokens) await updateAllAuraRegions(token, { reevaluate: false });
+  // One broken aura (e.g. a formula that can't be evaluated) must not stop the others
+  for (const token of tokens) {
+    try {
+      await updateAllAuraRegions(token, { reevaluate: false });
+    } catch (err) {
+      console.error(`Aura Effects | Updating the aura regions of ${token.name} failed`, err);
+    }
+  }
   // Collect every token's changes and send them as one batch
   const remove = new Set();
   const keep = new Set();
   const apply = {};
   for (const token of tokens) {
-    const plan = planAllAuras(token);
+    let plan;
+    try {
+      plan = planAllAuras(token);
+    } catch (err) {
+      console.error(`Aura Effects | Checking the auras of ${token.name} failed`, err);
+      continue;
+    }
     if (!plan) continue;
     plan.remove.forEach(uuid => remove.add(uuid));
     plan.keep.forEach(uuid => keep.add(uuid));
@@ -498,9 +575,10 @@ function getRegionDataFromEffect(effect, token) {
   // Limit the aura to the token's height plus the radius above and below, like Foundry's own token emanations
   // (RegionDocument.createTokenEmanation). Foundry shifts this range along when the token changes elevation.
   // null means unlimited, the behaviour from before this was added.
+  // Evaluated once: the distance formula builds the actor's roll data
+  const distance = effect.system.distance;
   let elevation = { bottom: null, top: null };
   if (!game.settings.get("auraeffects", "ignoreElevation")) {
-    const distance = effect.system.distance;
     const tokenElevation = token._source.elevation;
     const head = tokenElevation + (token._source.depth * token.parent.grid.distance);
     elevation = { bottom: tokenElevation - distance, top: head + distance };
@@ -534,7 +612,7 @@ function getRegionDataFromEffect(effect, token) {
       },
       gridBased: true,
       hole: false,
-      radius: token.parent.dimensions.distancePixels * effect.system.distance
+      radius: token.parent.dimensions.distancePixels * distance
     }],
     visibility: effect.system.showRadius ? CONST.REGION_VISIBILITY.ALWAYS : CONST.REGION_VISIBILITY.LAYER_UNLOCKED
   };
@@ -543,6 +621,9 @@ function getRegionDataFromEffect(effect, token) {
 
 export {
   canReceiveAuras,
+  evaluateFormula,
+  planAuraRegions,
+  registerTrustedScripts,
   getActorTokens,
   getHomeScene,
   getLiveScenes,

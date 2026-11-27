@@ -1,4 +1,4 @@
-import { refreshLiveScenes } from "./helpers.mjs";
+import { evaluateFormula, planAuraRegions, refreshLiveScenes } from "./helpers.mjs";
 
 const gmQueue = new foundry.utils.Semaphore();
 
@@ -17,16 +17,45 @@ function refreshLiveScenesQuery() {
   return true;
 }
 
+/*
+ * Any user may send these queries, so the GM checks what it is asked to do: only applied aura copies are deleted, only
+ * aura effects are copied (to actors on a scene where that aura has a region), and region data is worked out here
+ * from the token, never taken from the request.
+ */
+
 /**
- * Collect the ids of the given Active Effects per parent, skipping effects which are already gone
+ * Whether an effect is an applied aura copy
+ * @param {ActiveEffect} effect
+ * @returns {boolean}
+ */
+function isAppliedAura(effect) {
+  return Boolean(effect.getFlag("auraeffects", "fromAura"));
+}
+
+/**
+ * Whether a source aura may be copied to an actor: it is an aura effect, and one of the actor's tokens is on a scene
+ * where that aura has a region
+ * @param {ActiveEffect} effect
+ * @param {Actor} actor
+ * @returns {boolean}
+ */
+function mayApplyTo(effect, actor) {
+  if (!(effect instanceof ActiveEffect) || (effect.type !== "auraeffects.aura")) return false;
+  const tokens = actor.isToken ? [actor.token].filter(Boolean) : actor.getDependentTokens({ concreteOnly: true });
+  return tokens.some(t => t.parent?.regions.some(r => r.flags?.auraeffects?.origin === effect.uuid));
+}
+
+/**
+ * Collect the ids of the given applied aura copies per parent, skipping effects which are already gone and effects
+ * which aren't applied auras
  * @param {string[]} effectUuids
  * @returns {Map<ClientDocument, Set<string>>}
  */
 function getDeletionsByParent(effectUuids) {
   const idsByParent = new Map();
-  for (const uuid of new Set(effectUuids)) {
-    const effect = fromUuidSync(uuid);
-    if (!(effect instanceof ActiveEffect) || !effect.parent?.effects.has(effect.id)) continue;
+  for (const uuid of new Set(Array.isArray(effectUuids) ? effectUuids : [])) {
+    const effect = fromUuidSync(uuid, { strict: false });
+    if (!(effect instanceof ActiveEffect) || !effect.parent?.effects.has(effect.id) || !isAppliedAura(effect)) continue;
     if (!idsByParent.has(effect.parent)) idsByParent.set(effect.parent, new Set());
     idsByParent.get(effect.parent).add(effect.id);
   }
@@ -81,7 +110,7 @@ function getAppliedEffectData(effect, actor) {
     "flags.auraeffects.fromAura": effect.uuid
   });
   if (!effect.system.canStack) {
-    const bestValue = new Roll(effect.system.bestFormula.trim() || "0", effect.parent?.getRollData?.()).evaluateSync().total;
+    const bestValue = evaluateFormula(effect.system.bestFormula?.trim() || "0", effect.parent?.getRollData?.());
     foundry.utils.setProperty(effectData, "flags.auraeffects.bestValue", bestValue);
   }
   const changes = effectData.system.changes ?? [];
@@ -115,10 +144,10 @@ function getAppliedEffectData(effect, actor) {
  */
 function getCreations(actorToEffectsMap, idsByParent) {
   const createsByActor = new Map();
-  for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap)) {
-    const actor = fromUuidSync(actorUuid);
+  for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap ?? {})) {
+    const actor = fromUuidSync(actorUuid, { strict: false });
     // The actor may have been deleted while this request was queued
-    if (!actor) continue;
+    if (!(actor instanceof Actor) || !Array.isArray(effectUuids)) continue;
     const batchCreate = [];
     if (!idsByParent.has(actor)) idsByParent.set(actor, new Set());
     const batchDelete = idsByParent.get(actor);
@@ -126,8 +155,8 @@ function getCreations(actorToEffectsMap, idsByParent) {
     for (const uuid of new Set(effectUuids)) {
       // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
       if (allEffects.some(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(uuid))) continue;
-      const effect = fromUuidSync(uuid);
-      if (!effect) continue;
+      const effect = fromUuidSync(uuid, { strict: false });
+      if (!mayApplyTo(effect, actor)) continue;
       const effectData = getAppliedEffectData(effect, actor);
       if (!effect.system.canStack) {
         const bestValue = effectData.flags.auraeffects.bestValue;
@@ -186,12 +215,13 @@ async function modifyAuras({ remove = [], apply = {} } = {}) {
 async function updateAppliedEffects(actorToEffectsMap) {
   await gmQueue.add(() => {
     const allBatchOperations = [];
-    for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap)) {
-      const actor = fromUuidSync(actorUuid);
-      if (!actor) continue;
+    for (const [actorUuid, effectUuids] of Object.entries(actorToEffectsMap ?? {})) {
+      const actor = fromUuidSync(actorUuid, { strict: false });
+      if (!(actor instanceof Actor) || !Array.isArray(effectUuids)) continue;
       const updates = [];
       for (const uuid of effectUuids) {
-        const effect = fromUuidSync(uuid);
+        const effect = fromUuidSync(uuid, { strict: false });
+        if (!(effect instanceof ActiveEffect) || (effect.type !== "auraeffects.aura")) continue;
         // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
         const applied = actor.effects.find(e => [e.getFlag("auraeffects", "fromAura"), e.origin].includes(uuid));
         if (!effect || !applied) continue;
@@ -212,42 +242,37 @@ async function updateAppliedEffects(actorToEffectsMap) {
 }
 
 /**
- * For a given token, batch region creation, update, and deletion
- * @param {string} tokenUuid 
- * @param {RegionData[]} toCreate 
- * @param {RegionData[]} toUpdate
- * @param {string[]} toDelete 
+ * For a given token, batch region creation, update, and deletion. The changes are worked out here from the token's
+ * current state (planAuraRegions); region data in the request is ignored.
+ * @param {Object} data
+ * @param {string} data.tokenUuid
+ * @returns {Promise<boolean>}
  */
-async function updateRegionsForToken({tokenUuid, toCreate=[], toUpdate=[], toDelete=[]}) {
+async function updateRegionsForToken({ tokenUuid } = {}) {
   await gmQueue.add(async () => {
-    const token = await fromUuid(tokenUuid);
+    const token = (typeof tokenUuid === "string") ? await fromUuid(tokenUuid) : null;
     const scene = token?.parent;
-    if ( !scene ) return;
+    if ( !(token instanceof TokenDocument) || !scene ) return;
+    const plan = planAuraRegions(token);
+    if ( !plan ) return;
     const batchOperations = [];
-    const alreadyHas = (regionData) => {
-      const origin = foundry.utils.getProperty(regionData, "flags.auraeffects.origin");
-      return token.attachments.regions.some(r => r.getFlag("auraeffects", "origin") === origin);
-    }
-    toCreate = toCreate.filter(r => !alreadyHas(r));
-    if ( toCreate.length ) batchOperations.push({
+    if ( plan.toCreate.length ) batchOperations.push({
       action: "create",
       documentName: "Region",
       parent: scene,
-      data: toCreate
+      data: plan.toCreate
     });
-    toUpdate = toUpdate.filter(alreadyHas);
-    if ( toUpdate.length ) batchOperations.push({
+    if ( plan.toUpdate.length ) batchOperations.push({
       action: "update",
       documentName: "Region",
       parent: scene,
-      updates: toUpdate
+      updates: plan.toUpdate
     });
-    toDelete = toDelete.filter(id => token.attachments.regions.some(r => r.id === id));
-    if ( toDelete.length ) batchOperations.push({
+    if ( plan.toDelete.length ) batchOperations.push({
       action: "delete",
       documentName: "Region",
       parent: scene,
-      ids: toDelete
+      ids: plan.toDelete
     });
     if ( !batchOperations.length ) return;
     return foundry.documents.modifyBatch(batchOperations);

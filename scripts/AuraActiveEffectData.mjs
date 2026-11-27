@@ -1,5 +1,5 @@
 import { DISPOSITIONS } from "./constants.mjs";
-import { getActorTokens } from "./helpers.mjs";
+import { evaluateFormula, getActorTokens } from "./helpers.mjs";
 
 const { BooleanField, ColorField, JavaScriptField, NumberField, StringField } = foundry.data.fields;
 
@@ -65,7 +65,8 @@ export default function AuraActiveEffectDataMixin(ActiveEffectClass) {
     }
   
     get distance() {
-      return new Roll(this.distanceFormula || "0", this.parent.parent?.getRollData?.()).evaluateSync({ strict: false }).total;
+      // A formula that can't be evaluated counts as 0 instead of throwing (which stopped every aura refresh)
+      return evaluateFormula(this.distanceFormula || "0", this.parent.parent?.getRollData?.());
     }
 
     static migrateData(source, options, state) {

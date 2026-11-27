@@ -1,5 +1,5 @@
 import { DISPOSITIONS } from "../constants.mjs";
-import { canReceiveAuras, getActorTokens, getActiveAuraEffects, removeAndReplaceAuras } from "../helpers.mjs";
+import { canReceiveAuras, getActorTokens, getActiveAuraEffects, registerTrustedScripts, removeAndReplaceAuras } from "../helpers.mjs";
 
 /** @import { Actor, ActiveEffect, Item } from "@client/documents/_module.mjs" */
 
@@ -240,6 +240,8 @@ const AUTO_AURAS = {
 /* -------------------------------------------- */
 
 export function registerDnd5eHooks() {
+  // The conditions this module writes into automatic auras may run on every client, including the GM's
+  registerTrustedScripts(Object.values(AUTO_AURAS).flatMap(rule => rule.effects.map(r => (r.script ?? []).join(" && "))));
   Hooks.on("dnd5e.transformActor", onTransformation);
   Hooks.on("dnd5e.revertOriginalForm", onTransformation);
   Hooks.on("preCreateItem", onPreCreateItem);
@@ -807,7 +809,7 @@ function onPreCreateCastAura(effect, data, options, userId) {
   if (!(actor instanceof Actor) || !effect.getFlag("auraeffects", "autoAura")) return;
   const originUuid = effect.system.origin?.activity || effect.origin || "";
   const itemUuid = originUuid.split(".Activity.")[0].split(".ActiveEffect.")[0];
-  const caster = itemUuid ? fromUuidSync(itemUuid)?.actor : null;
+  const caster = itemUuid ? fromUuidSync(itemUuid, { strict: false })?.actor : null;
   if (!caster || (caster.uuid === actor.uuid)) return;
   // A creature inside the caster's aura already gets the aura's copy (e.g. applied to every target from the chat card)
   if (isInCastAura(actor, caster, effect)) return false;
@@ -973,7 +975,7 @@ async function onPostUseCastAura(activity, usageConfig, results) {
 function onPreCreateCircleRegion(region, data, options) {
   const itemUuid = region.getFlag("dnd5e", "item");
   if (!itemUuid) return;
-  const item = fromUuidSync(itemUuid);
+  const item = fromUuidSync(itemUuid, { strict: false });
   if (!item?.effects?.some(e => (e.type === "auraeffects.aura") && (e.getFlag("auraeffects", "autoAura") === "circle-of-power"))) return;
   options.dnd5e = { ...options.dnd5e, createActivityBehaviors: false };
   // dnd5e doesn't tie placed areas to concentration; mark it so that onConcentrationEnd can remove it

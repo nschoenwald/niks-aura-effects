@@ -168,9 +168,9 @@ async function createToken(token, options, userId) {
   if (!canReceiveAuras(token)) return;
   const toApply = getAuraRegions(token)
     .reduce((acc, region) => {
-      const effect = fromUuidSync(region.getFlag("auraeffects", "origin"));
+      const effect = fromUuidSync(region.getFlag("auraeffects", "origin"), { strict: false });
       if (!effect) return acc;
-      if (!auraShouldApply(effect, token)) return acc;
+      if (auraShouldApply(effect, token) !== true) return acc;
       acc.push(effect.uuid);
       return acc;
     }, []);
@@ -204,10 +204,13 @@ async function updateToken(token, updates, options, userId) {
   if ("disposition" in updates) {
     const appliedAuras = token.actor.effects.filter(e => e.getFlag("auraeffects", "fromAura"));
     const [toApply, toRemove] = getAuraRegions(token)
-      .map(r => fromUuidSync(r.getFlag("auraeffects", "origin")))
+      .map(r => fromUuidSync(r.getFlag("auraeffects", "origin"), { strict: false }))
       .reduce((acc, effect) => {
         if (!effect) return acc;
-        if (auraShouldApply(effect, token)) acc[0].push(effect.uuid);
+        const shouldApply = auraShouldApply(effect, token);
+        // null: a conditional script this client may not run; leave the aura as it is
+        if (shouldApply === null) return acc;
+        if (shouldApply) acc[0].push(effect.uuid);
         else {
           // TODO: For version 3.0, simplify this with the assumption that the old boolean-style fromAura flags are gone
           const appliedAura = appliedAuras.find(e => {

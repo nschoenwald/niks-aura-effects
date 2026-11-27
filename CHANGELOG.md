@@ -2,6 +2,14 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.8.2] — 2026-11-27
+### Fixed
+- **Security**: Players can no longer make the GM's computer create arbitrary scene regions, delete effects that aren't aura copies, or put copies of any effect on any creature. The GM now works out aura areas itself and only copies real auras to creatures on a scene where that aura is.
+- **Conditional scripts**: A script on an aura that a player can edit (for example on their own character) no longer runs on the GM's computer, where it would have full GM rights. It runs on that player's computer only; elsewhere the aura is left as it is. Scripts the module writes for automatic auras (Aura of Protection and the others) and scripts on effects only the GM can edit run everywhere as before.
+- **One broken aura no longer stops all auras**: A radius or "best" formula that can't be calculated (a typo, or dice in the "best" formula) counts as 0 with a warning in the browser console. Before, it stopped auras from being applied anywhere until it was fixed.
+- **Reverted auras**: Turning an aura back into a normal effect with the Revert button no longer causes errors while its area is being removed.
+- **Performance**: Aura areas work out their radius once per update, and the source aura looks up its tokens only once per update.
+
 ## [14.8.1] — 2026-11-27
 ### Fixed
 - **Spell auras don't pick up old targets (D&D 5e)**: The chat card of Circle of Power and the other spell auras without an area lists only the caster as its target. Before, it kept whatever was targeted at the time (for example the enemy of the last attack, or everyone in an earlier spell's area), and applying the effect from the card used those. Your own targets on the map are left alone. Spirit Guardians still targets as before.

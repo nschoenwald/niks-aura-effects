@@ -11,6 +11,8 @@ Active effects that radiate from a token and apply to other tokens nearby, for *
 
 - **Aura effects**: Turn any active effect into an aura with the **Convert to Aura** button on the effect sheet. Tokens inside the aura's radius receive a copy of the effect. Leaving the radius removes it.
 - **Who it applies to**: Friendly, hostile or any tokens, optionally the source token itself, and an optional conditional script. Secret tokens count as hostile.
+- **Conditional scripts**: A script is code, so it only runs where that's safe. Scripts on effects only the GM can edit run everywhere, as do the ones the module writes for automatic auras. A script on a player's own character runs only on that player's computer, never on the GM's: while only the GM or another player is around to check it, the aura stays as it is (it isn't applied or removed). To use a script on a character on every computer, have it be part of an effect only the GM can edit.
+- **A broken formula stays contained**: A radius or "best" formula that can't be calculated counts as 0 (with a warning in the browser console) instead of stopping auras for everyone.
 - **Radius**: A fixed distance or a formula using the actor's data (for example `@abilities.cha.mod`). Walls can block the aura, by the collision type you pick.
 - **Elevation**: The aura reaches as far up and down as its radius, measured from the token's feet and top. A creature flying high above the source isn't affected. Can be turned off with a setting.
 - **Stacking**: Auras with the same name either stack or only the best one applies, chosen by a "best" formula.
