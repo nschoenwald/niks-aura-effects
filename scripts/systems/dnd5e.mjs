@@ -250,6 +250,7 @@ export function registerDnd5eHooks() {
   Hooks.on("preCreateActiveEffect", onPreCreateCastAura);
   Hooks.on("dnd5e.preUseActivity", onPreUseCastAura);
   Hooks.on("dnd5e.postUseActivity", onPostUseCastAura);
+  Hooks.on("niks-dnd5e-tweaks.templateTargetFilter", onTemplateTargetFilter);
   Hooks.on("preCreateRegion", onPreCreateCircleRegion);
   Hooks.on("deleteActiveEffect", onConcentrationEnd);
   Hooks.on("createActiveEffect", onAdditionEffectChange);
@@ -871,14 +872,38 @@ function getCastAuras(activity) {
  * Casting a spell whose aura replaces its area doesn't place the area: the aura shows the radius and follows the
  * caster, and nothing (Nik's DnD5e Tweaks' area targeting included) picks up the creatures in a stale area. The usage
  * dialog still offers the checkbox, unticked.
+ * dnd5e also records the user's current targets on the usage card (e.g. the enemy of the last attack, or everyone in an
+ * earlier area), and the card's effect tray applies to those in "Targeted" mode. The aura reaches everyone in range by
+ * itself, so the card records only the caster, like Nik's DnD5e Tweaks does for activities that affect "Self". The
+ * user's own targets are left alone.
  * @param {Activity} activity
  * @param {object} usageConfig
+ * @param {object} dialogConfig
+ * @param {object} messageConfig
  */
-function onPreUseCastAura(activity, usageConfig) {
-  if (!usageConfig?.create || midiAppliesItemEffects()) return;
+function onPreUseCastAura(activity, usageConfig, dialogConfig, messageConfig) {
+  if (midiAppliesItemEffects()) return;
   const auras = getCastAuras(activity);
   if (!auras.length || auras.some(a => a.rule.keepArea)) return;
-  usageConfig.create.measuredTemplate = false;
+  if (usageConfig?.create) usageConfig.create.measuredTemplate = false;
+  const system = messageConfig?.data?.system;
+  if (!Array.isArray(system?.targets)) return;
+  const token = activity.getUsageToken?.() ?? activity.item.actor.getActiveTokens()[0]?.document;
+  const TargetsField = dnd5e.dataModels?.chatMessage?.fields?.TargetsField;
+  system.targets = (token && TargetsField?.getDescriptors) ? TargetsField.getDescriptors([token]) : [];
+}
+
+/**
+ * When the area of a spell whose aura replaces it is placed anyway (checkbox in the casting dialog), Nik's DnD5e Tweaks
+ * would target everyone in it and record them on the chat card. The aura reaches them by itself, so only the caster is
+ * targeted, as without the area. Hook of Tweaks' Auto-Target Tokens in Spell Templates (14.117.0).
+ * @param {Activity|null} activity
+ * @param {{selfOnly: boolean}} filter
+ */
+function onTemplateTargetFilter(activity, filter) {
+  if (!activity || midiAppliesItemEffects()) return;
+  const auras = getCastAuras(activity);
+  if (auras.length && !auras.some(a => a.rule.keepArea)) filter.selfOnly = true;
 }
 
 /**

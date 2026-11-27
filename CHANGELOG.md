@@ -2,6 +2,11 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.8.1] — 2026-11-27
+### Fixed
+- **Spell auras don't pick up old targets (D&D 5e)**: The chat card of Circle of Power and the other spell auras without an area lists only the caster as its target. Before, it kept whatever was targeted at the time (for example the enemy of the last attack, or everyone in an earlier spell's area), and applying the effect from the card used those. Your own targets on the map are left alone. Spirit Guardians still targets as before.
+- **Placing the area anyway**: If you tick the checkbox to place the spell's area, Nik's DnD5e Tweaks' auto-targeting now also targets only the caster instead of everyone in the area (needs Nik's DnD5e Tweaks 14.117.0 or later).
+
 ## [14.8.0] — 2026-11-27
 ### Added
 - **Spell auras start on their own (D&D 5e)**: Casting Circle of Power, Pass without Trace, Holy Aura, Aura of Life, Aura of Purity, Crusader's Mantle, Spirit Guardians, Aura of Evasion, Tranquility or Alustriel's Mooncloak now puts the aura on the caster right away. No more applying the effect to yourself from the chat card.
