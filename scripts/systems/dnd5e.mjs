@@ -71,6 +71,9 @@ const hasChange = (effect, pattern) => (effect.system?.changes ?? []).some(c => 
  * @property {string[]} [script]                     Conditions, all of which must hold
  * @property {string} [bestFormula]
  * @property {boolean} [nameAfterItem]               Applied copies are named after the item, not the effect
+ * @property {boolean} [keepArea]                    `cast` only: still place the spell's area when casting. By default
+ *                                                   the aura replaces it; keep it where the area does more (Spirit
+ *                                                   Guardians' damage through Nik's DnD5e Tweaks).
  */
 
 /**
@@ -198,6 +201,7 @@ const AUTO_AURAS = {
     effects: [{
       mode: "cast",
       distance: 15,
+      keepArea: true,
       disposition: DISPOSITIONS.HOSTILE,
       applyToSelf: false,
       match: e => !e.transfer && hasChange(e, /^system\.attributes\.movement\./),
@@ -244,6 +248,8 @@ export function registerDnd5eHooks() {
   Hooks.on("updateItem", onAutoAuraItemChange);
   Hooks.on("deleteItem", onAutoAuraItemChange);
   Hooks.on("preCreateActiveEffect", onPreCreateCastAura);
+  Hooks.on("dnd5e.preUseActivity", onPreUseCastAura);
+  Hooks.on("dnd5e.postUseActivity", onPostUseCastAura);
   Hooks.on("preCreateRegion", onPreCreateCircleRegion);
   Hooks.on("deleteActiveEffect", onConcentrationEnd);
   Hooks.on("createActiveEffect", onAdditionEffectChange);
@@ -802,12 +808,133 @@ function onPreCreateCastAura(effect, data, options, userId) {
   const itemUuid = originUuid.split(".Activity.")[0].split(".ActiveEffect.")[0];
   const caster = itemUuid ? fromUuidSync(itemUuid)?.actor : null;
   if (!caster || (caster.uuid === actor.uuid)) return;
+  // A creature inside the caster's aura already gets the aura's copy (e.g. applied to every target from the chat card)
+  if (isInCastAura(actor, caster, effect)) return false;
   const effectData = effect.toObject();
   effectData.type = effectData.flags.auraeffects.originalType ?? "base";
   for (const key of AURA_SYSTEM_KEYS) delete effectData.system[key];
   delete effectData.flags.auraeffects;
   ActiveEffect.implementation.create(effectData, { parent: actor }).catch(err => console.error(err));
   return false;
+}
+
+/**
+ * Whether one of an actor's tokens is inside the aura a caster emits for the same spell effect
+ * @param {Actor} actor           The actor receiving the effect
+ * @param {Actor} caster          The caster
+ * @param {ActiveEffect} effect   The effect being created on the actor
+ * @returns {boolean}
+ */
+function isInCastAura(actor, caster, effect) {
+  const source = effect._stats?.duplicateSource ?? effect._stats?.compendiumSource;
+  const feature = effect.getFlag("auraeffects", "autoAura");
+  const casterAuras = caster.effects.filter(e => (e.type === "auraeffects.aura") && !e.disabled
+    && ((source && (e._stats?.duplicateSource === source)) || (e.getFlag("auraeffects", "autoAura") === feature)));
+  if (!casterAuras.length) return false;
+  const origins = new Set(casterAuras.map(e => e.uuid));
+  return getActorTokens(actor).some(t => Array.from(t.regions).some(r => origins.has(r.flags?.auraeffects?.origin)));
+}
+
+/**
+ * Whether midi-qol applies item effects itself; it then targets and applies as it does for any spell
+ * @returns {boolean}
+ */
+function midiAppliesItemEffects() {
+  if (!game.modules.get("midi-qol")?.active) return false;
+  let value;
+  try {
+    value = (globalThis.MidiQOL?.configSettings?.() ?? game.settings.get("midi-qol", "ConfigSettings"))?.autoItemEffects;
+  } catch {
+    return false;
+  }
+  return Boolean(value) && (value !== "off") && (value !== "none");
+}
+
+/**
+ * The aura effects a spell's activity applies to its caster (rules in `cast` mode), with their rules
+ * @param {Activity} activity
+ * @returns {{ effect: ActiveEffect, rule: AutoAuraEffectRule }[]}
+ */
+function getCastAuras(activity) {
+  const item = activity?.item;
+  if (!item?.actor || !game.settings.get("auraeffects", "paladinAuras")) return [];
+  const rule = AUTO_AURAS[getAutoAuraFeature(item)];
+  const castRule = rule?.effects.find(r => r.mode === "cast");
+  if (!castRule) return [];
+  const linked = new Set((activity.effects ?? []).map(e => e._id ?? e.effect?.id));
+  return item.effects
+    .filter(e => (e.type === "auraeffects.aura") && e.getFlag("auraeffects", "autoAura") && linked.has(e.id))
+    .map(effect => ({ effect, rule: castRule }));
+}
+
+/**
+ * Casting a spell whose aura replaces its area doesn't place the area: the aura shows the radius and follows the
+ * caster, and nothing (Nik's DnD5e Tweaks' area targeting included) picks up the creatures in a stale area. The usage
+ * dialog still offers the checkbox, unticked.
+ * @param {Activity} activity
+ * @param {object} usageConfig
+ */
+function onPreUseCastAura(activity, usageConfig) {
+  if (!usageConfig?.create || midiAppliesItemEffects()) return;
+  const auras = getCastAuras(activity);
+  if (!auras.length || auras.some(a => a.rule.keepArea)) return;
+  usageConfig.create.measuredTemplate = false;
+}
+
+/**
+ * Apply a spell's aura to its caster as soon as it is cast, as dnd5e's chat card would
+ * (EffectApplicationElement#_prepareEffectData, same in 6.0 and 6.1): tied to Concentration, with the spell level
+ * and scaling of the cast. Applying it from the chat card again only enables the existing effect.
+ * @param {Activity} activity
+ * @param {object} usageConfig
+ * @param {object} results
+ */
+async function onPostUseCastAura(activity, usageConfig, results) {
+  try {
+    if (midiAppliesItemEffects()) return;
+    const auras = getCastAuras(activity);
+    if (!auras.length) return;
+    const actor = activity.item.actor;
+    if (!actor.isOwner) return;
+    const message = results?.message;
+    const scaledActivity = message?.getAssociatedActivity?.({ scaled: true }) ?? activity;
+    const concentration = actor.effects.get(message?.system?.concentration);
+    for (const { effect } of auras) {
+      const sourceKey = effect.inCompendium ? "compendiumSource" : "duplicateSource";
+      const changes = scaledActivity.getAppliedEffectChanges?.(effect, { chatMessage: message, target: actor }) ?? {};
+      foundry.utils.mergeObject(changes, {
+        flags: { dnd5e: { dependentOn: concentration?.uuid, scaling: message?.system?.scaling, spellLevel: message?.system?.level } },
+        system: {
+          origin: {
+            activity: scaledActivity.uuid,
+            effect: concentration?.uuid,
+            message: message?.uuid,
+            profile: scaledActivity.effects?.find(e => (e._id === effect.id))?._id
+          }
+        }
+      });
+      const existing = actor.effects.find(e => e._stats?.[sourceKey] === effect.uuid);
+      if (existing) {
+        await existing.update(foundry.utils.mergeObject({
+          disabled: false,
+          duration: { expired: false },
+          start: effect.constructor.getEffectStart()
+        }, changes));
+        continue;
+      }
+      const effectData = foundry.utils.mergeObject({
+        ...effect.toObject(),
+        disabled: false,
+        transfer: false,
+        _stats: { [sourceKey]: effect.uuid, [effect.inCompendium ? "duplicateSource" : "compendiumSource"]: null }
+      }, changes);
+      effectData.system.changes = await ActiveEffect.implementation.forApplication(effectData.system.changes,
+        scaledActivity, actor);
+      await ActiveEffect.implementation.create(effectData, { parent: actor });
+    }
+  } catch (err) {
+    console.error("Aura Effects | Applying the spell's aura to its caster failed", err);
+  }
 }
 
 /**

@@ -2,6 +2,14 @@
 
 All notable changes to Nik's Aura Effects are documented in this file.
 
+## [14.8.0] — 2026-11-27
+### Added
+- **Spell auras start on their own (D&D 5e)**: Casting Circle of Power, Pass without Trace, Holy Aura, Aura of Life, Aura of Purity, Crusader's Mantle, Spirit Guardians, Aura of Evasion, Tranquility or Alustriel's Mooncloak now puts the aura on the caster right away. No more applying the effect to yourself from the chat card.
+- **No area to place**: These spells (except Spirit Guardians, whose area handles the damage) no longer place an area when cast, so Nik's DnD5e Tweaks doesn't target everyone in it and nothing is left behind. The aura shows the radius and moves with the caster. Tick the checkbox in the casting dialog to place the area anyway.
+
+### Fixed
+- **No double effect from the chat card**: Applying a spell aura's effect to targets who are already inside the caster's aura no longer gives them a second copy.
+
 ## [14.7.5] — 2026-11-27
 ### Fixed
 - **No second Aura of Protection (D&D 5e)**: A feature or spell that already carries an aura you made yourself no longer gets an automatic one on top. The 14.7.4 setup added a second Aura of Protection to paladins with a hand-made aura; remove the one you don't want (see below).
